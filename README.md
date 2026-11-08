@@ -1,21 +1,54 @@
 # AutoFlow
 
-Customer retention platform for automotive businesses.
+AutoFlow — MVP для автосервисов, который помогает не терять повторные визиты и возвращать ранее отложенные работы.
 
-AutoFlow helps automotive businesses identify customers due for follow-up, manage consent-aware return workflows, and measure repeat visits attributable to customer outreach.
+## Возможности
+- Регистрация автосервиса и владельца, вход/выход, Argon2id password hashing, HttpOnly session cookie.
+- Изоляция клиентских данных по организации и проверка владельца клиента/автомобиля при операциях.
+- Клиентская база с поиском, автомобили и история визитов.
+- Панель показателей: клиенты, визиты, просроченное обслуживание, выручка.
+- Smart Return: следующий срок обслуживания считается по последнему визиту клиента, а не по устаревшим записям.
+- Журнал согласий: последнее событие согласия/отказа имеет приоритет; без подтверждённого согласия маркетинговый черновик не создаётся.
+- Отложенные работы: фиксируйте отказ клиента, планируйте повторный контакт, отмечайте связь, возврат работы или потерянную продажу; считайте потенциальную выручку.
+- Адаптивная панель с навигацией, поиском клиентов и отдельным сценарием учёта автомобилей.
+- Swagger API: `/docs` (только в development); health: `/health`.
 
-## Product focus
-The first release focuses on independent automotive service shops. The architecture is intended to support other automotive business types after validation.
+## Локальный запуск — Windows PowerShell
 
-## Status
-Initial repository bootstrap. See `docs/` for product requirements, market research, interview guide, roadmap, and security checklist.
+```powershell
+git switch feat/mvp-foundation
+git pull origin feat/mvp-foundation
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn app.main:app --reload
+```
 
-## Planned stack
-- Python 3.12+
-- FastAPI
-- SQLAlchemy 2
-- PostgreSQL (SQLite for local development)
-- Pytest
+Откройте http://127.0.0.1:8000 и зарегистрируйте тестовый автосервис.
 
-## Safety
-Do not use real customer data in development. The first MVP creates message drafts for staff review; it does not send unattended bulk messages. Complete legal and privacy review before processing real personal data.
+## Миграции БД
+
+Локальный development режим автоматически создаёт отсутствующие таблицы, не удаляя существующую SQLite базу. Для явного управления схемой:
+
+```powershell
+alembic upgrade head
+```
+
+Production использует PostgreSQL. Задайте `DATABASE_URL` и уникальный `SECRET_KEY` длиной не менее 32 символов до запуска. Миграции должны выполняться перед стартом production-приложения.
+
+## Тесты
+
+```powershell
+python -m pytest -q
+```
+
+## Безопасность и границы готовности
+
+Это тестовый MVP, не готовый production SaaS. В приложении есть проверка Origin для изменяющих запросов, cookie HttpOnly/SameSite, подпись и срок жизни сессии, хеширование паролей Argon2id, ограничения ввода и tenant-scoped выборки. Эти меры не являются независимым аудитом или гарантией отсутствия уязвимостей.
+
+До пилота с реальными данными обязательны: внешний security review, проверка CSRF/session revocation/rate limiting, HTTPS и security headers, backups/restore drills, мониторинг, PostgreSQL, миграции на реальной схеме, управление секретами, экспорт и удаление данных, юридическая проверка персональных данных и рекламных согласий. Не вводите реальные данные клиентов до этих работ.
+
+## Конкурентный анализ
+
+См. [docs/COMPETITIVE_RESEARCH.md](docs/COMPETITIVE_RESEARCH.md). AutoFlow фокусируется на recovery отложенных работ и повторных визитов, а не пытается сразу заменить полный shop-management пакет.
