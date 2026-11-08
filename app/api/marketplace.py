@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
@@ -92,6 +92,56 @@ def public_business(organization_id: int, db: Session = Depends(get_db)):
         "id": s.id, "title": s.title, "category": s.category, "description": s.description,
         "price_from_rub": s.price_from_rub, "duration_minutes": s.duration_minutes,
     } for s in services]}
+
+@router.get("/api/marketplace/availability")
+def public_availability(
+    service_id: int,
+    day: date,
+    utc_offset_minutes: int = Query(default=180, ge=-720, le=840),
+    db: Session = Depends(get_db),
+):
+    """Return 30-minute start slots during the default 09:00–18:00 local service window."""
+    service = db.scalar(select(ServiceOffering).where(
+        ServiceOffering.id == service_id, ServiceOffering.is_active.is_(True)))
+    if not service:
+        raise HTTPException(status_code=404, detail="Услуга недоступна")
+    profile = db.scalar(select(BusinessProfile).where(
+        BusinessProfile.organization_id == service.organization_id,
+        BusinessProfile.is_published.is_(True)))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Автосервис пока не принимает онлайн-записи")
+
+    local_tz = timezone(timedelta(minutes=utc_offset_minutes))
+    opening = datetime.combine(day, time(hour=9), tzinfo=local_tz)
+    closing = datetime.combine(day, time(hour=18), tzinfo=local_tz)
+    now = datetime.now(timezone.utc)
+    duration = timedelta(minutes=service.duration_minutes)
+    bookings = db.scalars(select(Appointment).where(
+        Appointment.organization_id == service.organization_id,
+        Appointment.status.in_(["pending", "confirmed"]),
+        Appointment.starts_at < closing.astimezone(timezone.utc),
+        Appointment.ends_at > opening.astimezone(timezone.utc),
+    )).all()
+    slots = []
+    cursor = opening
+    while cursor + duration <= closing:
+        start_utc = cursor.astimezone(timezone.utc)
+        end_utc = (cursor + duration).astimezone(timezone.utc)
+        if start_utc >= now + timedelta(minutes=15) and not any(
+            booking.starts_at < end_utc and booking.ends_at > start_utc
+            for booking in bookings
+        ):
+            slots.append(cursor.isoformat())
+        cursor += timedelta(minutes=30)
+    return {
+        "service_id": service.id,
+        "date": day.isoformat(),
+        "timezone_offset_minutes": utc_offset_minutes,
+        "working_hours": {"from": "09:00", "to": "18:00"},
+        "slot_step_minutes": 30,
+        "slots": slots,
+    }
+
 
 @router.post("/api/marketplace/bookings", status_code=201)
 @limiter.limit("5/minute")
