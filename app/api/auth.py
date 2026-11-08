@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
@@ -16,6 +16,14 @@ class RegisterIn(BaseModel):
     organization_name: str = Field(min_length=2, max_length=160)
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
+
+    @field_validator("organization_name")
+    @classmethod
+    def organization_name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Название организации должно содержать минимум 2 символа")
+        return value
 
 class LoginIn(BaseModel):
     email: EmailStr
