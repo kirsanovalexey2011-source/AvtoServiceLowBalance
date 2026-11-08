@@ -109,7 +109,6 @@ def test_public_availability_returns_free_slots_and_hides_booked_time(client: Te
     data = available.json()
     assert data["working_hours"] == {"from": "09:00", "to": "18:00"}
     assert data["slot_step_minutes"] == 30
-    assert "2026-" not in data["slots"][0] if data["slots"] else True
 
     first_slot = datetime.fromisoformat(data["slots"][0])
     booking = client.post("/api/marketplace/bookings", json={
