@@ -141,7 +141,6 @@ def save_partner_profile(payload: ProfileIn, db: Session = Depends(get_db), user
     else:
         for key, value in payload.model_dump().items():
             setattr(profile, key, value)
-    profile.is_published = False if profile.is_published else profile.is_published
     db.commit()
     db.refresh(profile)
     return profile_payload(profile)
