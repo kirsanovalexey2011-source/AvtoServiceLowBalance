@@ -112,6 +112,7 @@ class DeferredService(Base):
     __table_args__ = (
         Index("ix_deferred_org_status_followup", "organization_id", "status", "follow_up_at"),
         CheckConstraint("estimated_amount_minor IS NULL OR estimated_amount_minor >= 0", name="ck_deferred_nonnegative_amount"),
+        CheckConstraint("status IN ('open', 'contacted', 'booked', 'recovered', 'lost')", name="ck_deferred_status"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
