@@ -59,3 +59,8 @@ Do not copy source code, proprietary interface assets, wording, screenshots or b
 - Tekmetric marketing automations: https://support.tekmetric.com/hc/en-us/articles/33212380922007-Marketing-Automations
 - Shopmonkey customer communications: https://www.shopmonkey.io/product/customer-comms
 - Software Advice service-history overview (2026): https://www.softwareadvice.com/resources/best-auto-repair-shop-software-service-history/
+
+
+## Russian-market scan — 8 November 2026
+
+See [RU_COMPETITOR_RESEARCH.md](RU_COMPETITOR_RESEARCH.md) for a feature-by-feature review of UREMONT, FIT SERVICE, STOCRM, АвтоДилер Онлайн, Gincore and discovery platforms. AutoFlow's opportunity is to connect local discovery and booking to one vehicle/service timeline and help independent workshops recover repeat visits.
