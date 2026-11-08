@@ -190,7 +190,9 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
     return {"id": booking.id, "status": booking.status}
 
 def require_platform_admin(user: User) -> None:
-    require_platform_admin(user)
+    admin_email = (settings.platform_admin_email or "").strip().lower()
+    if not admin_email or user.email.lower() != admin_email:
+        raise HTTPException(status_code=403, detail="Доступ только для администратора платформы")
 
 @router.get("/api/platform/businesses")
 def platform_businesses(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
