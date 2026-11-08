@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
-from app.models import Client, ConsentRecord, ServiceVisit, User, Vehicle
+from app.models import Client, ConsentRecord, DeferredService, ServiceVisit, User, Vehicle
 
 router = APIRouter(prefix="/api", tags=["workspace"])
 
@@ -27,6 +27,17 @@ class VehicleIn(BaseModel):
     year: int | None = Field(default=None, ge=1900, le=2100)
     plate_number: str | None = Field(default=None, max_length=20)
     mileage_km: int | None = Field(default=None, ge=0, le=2_000_000)
+
+class DeferredIn(BaseModel):
+    client_id: int
+    vehicle_id: int | None = None
+    service_name: str = Field(min_length=2, max_length=160)
+    estimated_amount_rub: int | None = Field(default=None, ge=0, le=100_000_000)
+    follow_up_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+
+class DeferredStatusIn(BaseModel):
+    status: str = Field(pattern="^(open|contacted|booked|recovered|lost)$")
 
 class VisitIn(BaseModel):
     client_id: int
@@ -70,7 +81,14 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
         .where(ServiceVisit.organization_id == org, ServiceVisit.next_due_at <= datetime.now(timezone.utc))
     ) or 0
     revenue = db.scalar(select(func.coalesce(func.sum(ServiceVisit.amount_minor), 0)).where(ServiceVisit.organization_id == org)) or 0
-    return {"clients": total, "visits": visits, "due": due, "revenue_rub": round(revenue / 100)}
+    deferred_count = db.scalar(select(func.count(DeferredService.id)).where(
+        DeferredService.organization_id == org, DeferredService.status.in_(["open", "contacted", "booked"])
+    )) or 0
+    deferred_value = db.scalar(select(func.coalesce(func.sum(DeferredService.estimated_amount_minor), 0)).where(
+        DeferredService.organization_id == org, DeferredService.status.in_(["open", "contacted", "booked"])
+    )) or 0
+    return {"clients": total, "visits": visits, "due": due, "revenue_rub": round(revenue / 100),
+            "deferred_count": deferred_count, "deferred_value_rub": round(deferred_value / 100)}
 
 @router.get("/clients")
 def list_clients(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -112,6 +130,56 @@ def create_vehicle(payload: VehicleIn, db: Session = Depends(get_db), user: User
     db.commit()
     db.refresh(vehicle)
     return {"id": vehicle.id, "make": vehicle.make, "model": vehicle.model}
+
+@router.post("/deferred-services", status_code=201)
+def create_deferred_service(payload: DeferredIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    owned_client(db, user, payload.client_id)
+    if payload.vehicle_id:
+        vehicle = db.scalar(select(Vehicle).where(
+            Vehicle.id == payload.vehicle_id,
+            Vehicle.organization_id == user.organization_id,
+            Vehicle.client_id == payload.client_id,
+        ))
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Автомобиль не найден у этого клиента")
+    data = payload.model_dump()
+    amount = data.pop("estimated_amount_rub")
+    item = DeferredService(
+        organization_id=user.organization_id,
+        estimated_amount_minor=amount * 100 if amount is not None else None,
+        **data,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"id": item.id, "status": item.status}
+
+@router.get("/deferred-services")
+def list_deferred_services(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = db.execute(
+        select(DeferredService, Client.full_name)
+        .join(Client, (Client.id == DeferredService.client_id) & (Client.organization_id == DeferredService.organization_id))
+        .where(DeferredService.organization_id == user.organization_id)
+        .order_by(DeferredService.created_at.desc()).limit(100)
+    ).all()
+    return [{
+        "id": item.id, "client_id": item.client_id, "client": name, "service_name": item.service_name,
+        "status": item.status, "estimated_amount_rub": round(item.estimated_amount_minor / 100) if item.estimated_amount_minor else 0,
+        "follow_up_at": item.follow_up_at.isoformat() if item.follow_up_at else None,
+        "notes": item.notes,
+    } for item, name in rows]
+
+@router.patch("/deferred-services/{item_id}")
+def update_deferred_service(item_id: int, payload: DeferredStatusIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    item = db.scalar(select(DeferredService).where(
+        DeferredService.id == item_id, DeferredService.organization_id == user.organization_id
+    ))
+    if not item:
+        raise HTTPException(status_code=404, detail="Отложенная работа не найдена")
+    item.status = payload.status
+    item.closed_at = datetime.now(timezone.utc) if payload.status in {"recovered", "lost"} else None
+    db.commit()
+    return {"id": item.id, "status": item.status}
 
 @router.get("/visits")
 def list_visits(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
