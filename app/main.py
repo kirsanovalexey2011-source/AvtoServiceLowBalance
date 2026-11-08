@@ -1,5 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.api.auth import limiter
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.crm import router as crm_router
@@ -27,7 +30,17 @@ async def same_origin_for_unsafe_requests(request: Request, call_next):
             request_host = request.headers.get("host", "").lower()
             if not origin_host or origin_host != request_host:
                 return JSONResponse(status_code=403, content={"detail": "Cross-origin request rejected"})
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    if request.url.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(health_router, tags=["health"])
 app.include_router(auth_router)
