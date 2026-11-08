@@ -37,5 +37,24 @@
 - [ ] 3–5 pilot businesses.
 - [ ] Validate pricing, support and payment eligibility.
 
-## Current status
-Initial docs, FastAPI scaffold, SQLAlchemy entities and health tests are in progress. Authentication, migrations, CRUD, workflows, UI, integrations and production hardening remain outstanding.
+## Marketplace extension — foundation implemented
+- [x] Add organization-owned public business profiles.
+- [x] Add service catalogue with categories, indicative prices and durations.
+- [x] Add public marketplace search for published services.
+- [x] Add customer booking requests with pending/confirmed/cancelled/completed states.
+- [x] Add basic overlap checks for pending and confirmed booking requests.
+- [x] Add partner endpoints for profile, services and incoming bookings.
+- [x] Add platform-admin endpoints for partner review and booking oversight.
+- [x] Add public catalogue page at /marketplace, partner page at /partner and operations page at /platform.
+- [x] Add migration 0003_marketplace without dropping or rewriting existing customer tables.
+- [x] Add marketplace API tests and embedded JavaScript syntax checks.
+
+## Remaining before a real public launch
+- [ ] Configure a dedicated PLATFORM_ADMIN_EMAIL on the server.
+- [ ] Finish visual/functional browser QA on desktop and mobile.
+- [ ] Add real availability calendar and transactional protection against concurrent booking races.
+- [ ] Link confirmed appointments to CRM customer/vehicle records with appropriate identity checks.
+- [ ] Add driver accounts, booking history and cancellation flows.
+- [ ] Add notification delivery, audit logs, retention/deletion workflows and privacy/legal review.
+- [ ] Validate PostgreSQL deployment, backups, monitoring and recovery.
+- [ ] Recruit pilot shops in Saint Petersburg and Leningrad Oblast.
