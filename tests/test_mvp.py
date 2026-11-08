@@ -71,6 +71,14 @@ def test_client_visit_and_smart_return(client: TestClient) -> None:
     queue = client.get("/api/smart-return").json()
     assert queue[0]["has_marketing_consent"] is False
     assert queue[0]["draft"] is None
+    # A newer completed visit with a future due date removes the customer from the overdue queue.
+    updated_visit = client.post("/api/visits", json={
+        "client_id": client_id, "service_name": "Повторная замена масла",
+        "next_due_at": "2099-01-01T12:00:00Z", "amount_rub": 3000
+    })
+    assert updated_visit.status_code == 201
+    assert client.get("/api/dashboard").json()["due"] == 0
+    assert client.get("/api/smart-return").json() == []
 
 def test_tenant_isolation_and_cross_origin_rejection(client: TestClient) -> None:
     client.post("/api/auth/register", json={
