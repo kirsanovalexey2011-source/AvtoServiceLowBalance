@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     secret_key: str = "development-only-change-me"
     database_url: str = "sqlite:///./autoflow.db"
+    platform_admin_email: str | None = None
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")
