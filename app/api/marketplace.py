@@ -127,10 +127,18 @@ def public_availability(
     while cursor + duration <= closing:
         start_utc = cursor.astimezone(timezone.utc)
         end_utc = (cursor + duration).astimezone(timezone.utc)
-        if start_utc >= now + timedelta(minutes=15) and not any(
-            booking.starts_at < end_utc and booking.ends_at > start_utc
-            for booking in bookings
-        ):
+        has_conflict = False
+        for booking in bookings:
+            booked_start = booking.starts_at
+            booked_end = booking.ends_at
+            if booked_start.tzinfo is None:
+                booked_start = booked_start.replace(tzinfo=timezone.utc)
+            if booked_end.tzinfo is None:
+                booked_end = booked_end.replace(tzinfo=timezone.utc)
+            if booked_start < end_utc and booked_end > start_utc:
+                has_conflict = True
+                break
+        if start_utc >= now + timedelta(minutes=15) and not has_conflict:
             slots.append(cursor.isoformat())
         cursor += timedelta(minutes=30)
     return {
