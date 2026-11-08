@@ -189,6 +189,46 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
     db.commit()
     return {"id": booking.id, "status": booking.status}
 
+def require_platform_admin(user: User) -> None:
+    require_platform_admin(user)
+
+@router.get("/api/platform/businesses")
+def platform_businesses(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_platform_admin(user)
+    rows = db.execute(select(BusinessProfile, Organization.name).join(
+        Organization, Organization.id == BusinessProfile.organization_id
+    ).order_by(BusinessProfile.created_at.desc()).limit(500)).all()
+    result = []
+    for profile, organization_name in rows:
+        services = db.scalars(select(ServiceOffering).where(
+            ServiceOffering.organization_id == profile.organization_id).order_by(ServiceOffering.id)).all()
+        result.append({**profile_payload(profile, len(services)), "organization": organization_name,
+                       "services": [{"id": s.id, "title": s.title, "category": s.category,
+                                     "price_from_rub": s.price_from_rub, "active": s.is_active} for s in services]})
+    return result
+
+@router.patch("/api/platform/businesses/{organization_id}/publish")
+def platform_publish_business(organization_id: int, db: Session = Depends(get_db),
+                              user: User = Depends(get_current_user)):
+    require_platform_admin(user)
+    profile = db.scalar(select(BusinessProfile).where(BusinessProfile.organization_id == organization_id))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль автосервиса не найден")
+    profile.is_published = not profile.is_published
+    db.commit()
+    return {"organization_id": organization_id, "is_published": profile.is_published}
+
+@router.get("/api/platform/bookings")
+def platform_bookings(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_platform_admin(user)
+    rows = db.execute(select(Appointment, BusinessProfile.public_name, ServiceOffering.title).join(
+        BusinessProfile, BusinessProfile.organization_id == Appointment.organization_id
+    ).join(ServiceOffering, ServiceOffering.id == Appointment.service_id)
+     .order_by(Appointment.created_at.desc()).limit(1000)).all()
+    return [{"id": a.id, "business": business, "service": service, "customer_name": a.customer_name,
+             "customer_phone": a.customer_phone, "customer_email": a.customer_email,
+             "starts_at": a.starts_at.isoformat(), "status": a.status} for a, business, service in rows]
+
 @router.get("/api/platform/overview")
 def platform_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     admin_email = (settings.platform_admin_email or "").strip().lower()
