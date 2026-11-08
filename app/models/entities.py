@@ -106,3 +106,21 @@ class Reminder(Base):
     message_text: Mapped[str] = mapped_column(Text)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+class DeferredService(Base):
+    __tablename__ = "deferred_services"
+    __table_args__ = (
+        Index("ix_deferred_org_status_followup", "organization_id", "status", "follow_up_at"),
+        CheckConstraint("estimated_amount_minor IS NULL OR estimated_amount_minor >= 0", name="ck_deferred_nonnegative_amount"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
+    vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"), nullable=True)
+    service_name: Mapped[str] = mapped_column(String(160))
+    estimated_amount_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
