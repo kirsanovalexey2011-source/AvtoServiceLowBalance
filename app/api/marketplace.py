@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
+from app.api.auth import limiter
 from app.core.config import settings
 from app.models import Appointment, BusinessProfile, Organization, ServiceOffering, User
 
@@ -93,7 +94,8 @@ def public_business(organization_id: int, db: Session = Depends(get_db)):
     } for s in services]}
 
 @router.post("/api/marketplace/bookings", status_code=201)
-def create_public_booking(payload: BookingIn, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def create_public_booking(request: Request, payload: BookingIn, db: Session = Depends(get_db)):
     service = db.scalar(select(ServiceOffering).where(
         ServiceOffering.id == payload.service_id, ServiceOffering.is_active.is_(True)))
     if not service:
