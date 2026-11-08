@@ -13,6 +13,7 @@ from app.db.session import engine
 from app.models import Client, ConsentRecord, DeferredService, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
 from app.web import router as web_router
 from app.marketplace_web import router as marketplace_web_router
+from app.role_portal import router as role_portal_router
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
@@ -58,6 +59,7 @@ app.include_router(crm_router)
 app.include_router(marketplace_router)
 app.include_router(web_router)
 app.include_router(marketplace_web_router)
+app.include_router(role_portal_router)
 
 @app.get("/api")
 def api_info() -> dict[str, str]:
