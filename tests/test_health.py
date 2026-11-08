@@ -8,7 +8,8 @@ def test_health_returns_ok() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-def test_root_identifies_app() -> None:
+def test_root_serves_autoflow_dashboard() -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json()["name"] == "AutoFlow"
+    assert "text/html" in response.headers["content-type"]
+    assert "AutoFlow" in response.text
