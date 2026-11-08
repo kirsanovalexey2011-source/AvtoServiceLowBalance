@@ -58,3 +58,12 @@
 - [ ] Add notification delivery, audit logs, retention/deletion workflows and privacy/legal review.
 - [ ] Validate PostgreSQL deployment, backups, monitoring and recovery.
 - [ ] Recruit pilot shops in Saint Petersburg and Leningrad Oblast.
+
+
+## Account foundation (November 2026)
+- [x] Add production email one-time-code verification for new workshop accounts.
+- [x] Add account profile fields for a person's name and phone number.
+- [x] Let existing accounts verify their current email without losing their account or CRM data.
+- [ ] Add an SMS provider adapter and verified-phone flow.
+- [ ] Build customer accounts with a vehicle garage, booking history and service documents.
+- [ ] Add verified post-visit reviews, provider availability and race-safe time-slot reservations.
