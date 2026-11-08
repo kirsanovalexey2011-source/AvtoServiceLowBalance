@@ -76,3 +76,13 @@ def test_platform_endpoints_are_restricted(client: TestClient) -> None:
     register(client, "ordinary@example.com")
     assert client.get("/api/platform/overview").status_code == 403
     assert client.get("/api/platform/businesses").status_code == 403
+
+def test_role_selection_and_workspace_pages(client: TestClient) -> None:
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "Разработчик" in home.text
+    assert "Клиент" in home.text
+    assert "Продавец услуг" in home.text
+    assert client.get("/platform-login").status_code == 200
+    assert client.get("/workspace").status_code == 200
+    assert client.get("/marketplace").status_code == 200
