@@ -53,6 +53,15 @@ def test_client_visit_and_smart_return(client: TestClient) -> None:
     assert dashboard["due"] == 1
     queue = client.get("/api/smart-return").json()
     assert len(queue) == 1
+    assert queue[0]["has_marketing_consent"] is False
+    assert queue[0]["draft"] is None
+    consent = client.post("/api/clients/" + str(client_id) + "/consents", json={
+        "channel": "sms", "purpose": "marketing", "granted": True,
+        "evidence_reference": "Test consent"
+    })
+    assert consent.status_code == 201
+    queue = client.get("/api/smart-return").json()
+    assert queue[0]["has_marketing_consent"] is True
     assert "Иван Петров" in queue[0]["draft"]
 
 def test_workspace_requires_authentication(client: TestClient) -> None:
