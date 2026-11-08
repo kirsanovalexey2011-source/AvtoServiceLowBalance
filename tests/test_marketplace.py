@@ -70,6 +70,7 @@ def test_partner_profile_service_public_listing_and_booking(client: TestClient) 
     assert confirmed.status_code == 200
     platform_bookings = client.get("/api/platform/bookings").json()
     assert len(platform_bookings) == 1
+    assert client.get("/api/platform/clients").status_code == 200
 
 def test_platform_endpoints_are_restricted(client: TestClient) -> None:
     register(client, "ordinary@example.com")
