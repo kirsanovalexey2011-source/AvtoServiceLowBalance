@@ -110,6 +110,14 @@ def test_public_availability_returns_free_slots_and_hides_booked_time(client: Te
     assert data["working_hours"] == {"from": "09:00", "to": "18:00"}
     assert data["slot_step_minutes"] == 30
 
+    outside_hours = client.post("/api/marketplace/bookings", json={
+        "service_id": service.json()["id"],
+        "customer_name": "Алексей",
+        "customer_phone": "+79991112233",
+        "starts_at": f"{day.isoformat()}T08:30:00+03:00",
+    })
+    assert outside_hours.status_code == 422
+
     first_slot = datetime.fromisoformat(data["slots"][0])
     booking = client.post("/api/marketplace/bookings", json={
         "service_id": service.json()["id"],
