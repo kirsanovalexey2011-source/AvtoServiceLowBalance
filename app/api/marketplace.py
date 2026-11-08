@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.api.auth import limiter
 from app.core.config import settings
-from app.models import Appointment, BusinessProfile, Organization, ServiceOffering, User
+from app.models import Appointment, BusinessProfile, Client, Organization, ServiceOffering, User
 
 router = APIRouter(tags=["marketplace"])
 
@@ -232,14 +232,25 @@ def platform_bookings(db: Session = Depends(get_db), user: User = Depends(get_cu
              "customer_phone": a.customer_phone, "customer_email": a.customer_email,
              "starts_at": a.starts_at.isoformat(), "status": a.status} for a, business, service in rows]
 
+@router.get("/api/platform/clients")
+def platform_clients(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_platform_admin(user)
+    rows = db.execute(select(Client, Organization.name).join(
+        Organization, Organization.id == Client.organization_id
+    ).order_by(Client.created_at.desc()).limit(1000)).all()
+    return [{"id": client.id, "organization": organization, "name": client.full_name,
+             "phone": client.phone, "email": client.email, "created_at": client.created_at.isoformat()}
+            for client, organization in rows]
+
 @router.get("/api/platform/overview")
 def platform_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     admin_email = (settings.platform_admin_email or "").strip().lower()
     if not admin_email or user.email.lower() != admin_email:
         raise HTTPException(status_code=403, detail="Доступ только для администратора платформы")
     organizations = db.scalar(select(func.count(Organization.id))) or 0
-    customers = db.scalar(select(func.count(Appointment.id))) or 0
+    customers = db.scalar(select(func.count(Client.id))) or 0
+    booking_requests = db.scalar(select(func.count(Appointment.id))) or 0
     pending = db.scalar(select(func.count(Appointment.id)).where(Appointment.status == "pending")) or 0
     published = db.scalar(select(func.count(BusinessProfile.id)).where(BusinessProfile.is_published.is_(True))) or 0
     return {"organizations": organizations, "published_businesses": published,
-            "booking_requests": customers, "pending_bookings": pending}
+            "customers": customers, "booking_requests": booking_requests, "pending_bookings": pending}
