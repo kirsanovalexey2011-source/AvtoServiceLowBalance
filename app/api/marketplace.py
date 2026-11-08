@@ -169,6 +169,13 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
     if start < datetime.now(timezone.utc) + timedelta(minutes=15):
         raise HTTPException(status_code=422, detail="Выберите время не менее чем через 15 минут")
     end = start + timedelta(minutes=service.duration_minutes)
+    service_timezone = timezone(timedelta(hours=3))
+    local_start = start.astimezone(service_timezone)
+    local_end = end.astimezone(service_timezone)
+    if local_start.minute not in {0, 30} or local_start.second or local_start.microsecond:
+        raise HTTPException(status_code=422, detail="Выберите время из доступных 30-минутных интервалов")
+    if local_start.hour < 9 or (local_end.hour > 18 or (local_end.hour == 18 and local_end.minute > 0)):
+        raise HTTPException(status_code=422, detail="Онлайн-запись доступна с 09:00 до 18:00 по московскому времени")
     conflict = db.scalar(select(Appointment.id).where(
         Appointment.organization_id == service.organization_id,
         Appointment.status.in_(["pending", "confirmed"]),
