@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_session_token, hash_password, verify_password
 from app.models import Organization, User
@@ -55,5 +55,5 @@ def logout(response: Response):
     return {"status": "ok"}
 
 @router.get("/me")
-def me(user: User = Depends(__import__("app.api.deps", fromlist=["get_current_user"]).get_current_user)):
+def me(user: User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email, "organization": user.organization.name, "role": user.role}
