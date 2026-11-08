@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
@@ -13,6 +13,14 @@ class ClientIn(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=254)
     notes: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Укажите имя клиента")
+        return value
 
 class ConsentIn(BaseModel):
     channel: str = Field(min_length=2, max_length=30)
@@ -98,7 +106,7 @@ def list_clients(db: Session = Depends(get_db), user: User = Depends(get_current
     ).all()
     return [{
         "id": c.id, "full_name": c.full_name, "phone": c.phone, "email": c.email, "notes": c.notes,
-        "vehicles": [{"id": v.id, "make": v.make, "model": v.model, "year": v.year} for v in c.vehicles],
+        "vehicles": [{"id": v.id, "make": v.make, "model": v.model, "year": v.year} for v in c.vehicles if v.organization_id == user.organization_id],
     } for c in clients]
 
 @router.post("/clients", status_code=201)
