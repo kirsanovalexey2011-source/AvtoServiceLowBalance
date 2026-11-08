@@ -36,11 +36,14 @@ def test_register_login_and_duplicate_email(client: TestClient) -> None:
     assert client.get("/api/auth/me").status_code == 401
     assert client.post("/api/auth/login", json={"email": payload["email"], "password": payload["password"]}).status_code == 200
     assert client.post("/api/auth/register", json=payload).status_code == 409
+    invalid_org = {**payload, "email": "blank@example.com", "organization_name": "   "}
+    assert client.post("/api/auth/register", json=invalid_org).status_code == 422
 
 def test_client_visit_and_smart_return(client: TestClient) -> None:
     client.post("/api/auth/register", json={"organization_name": "Garage", "email": "a@example.com", "password": "strong-pass-123"})
     created = client.post("/api/clients", json={"full_name": "Иван Петров", "phone": "+79990000000"})
     assert created.status_code == 201
+    assert client.post("/api/clients", json={"full_name": "   "}).status_code == 422
     client_id = created.json()["id"]
     visit = client.post("/api/visits", json={
         "client_id": client_id, "service_name": "Замена масла",
