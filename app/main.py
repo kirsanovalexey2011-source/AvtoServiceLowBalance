@@ -10,7 +10,7 @@ from app.api.marketplace import router as marketplace_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.models import Client, ConsentRecord, DeferredService, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
+from app.models import Client, ConsentRecord, DeferredService, EmailVerification, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
 from app.web import router as web_router
 from app.marketplace_web import router as marketplace_web_router
 from app.role_portal import router as role_portal_router
