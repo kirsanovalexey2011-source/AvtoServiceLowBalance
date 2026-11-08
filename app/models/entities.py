@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -27,6 +27,7 @@ class User(Base):
 
 class Client(Base):
     __tablename__ = "clients"
+    __table_args__ = (Index("ix_clients_org_created", "organization_id", "created_at"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     full_name: Mapped[str] = mapped_column(String(160))
@@ -40,6 +41,7 @@ class Client(Base):
 
 class Vehicle(Base):
     __tablename__ = "vehicles"
+    __table_args__ = (Index("ix_vehicles_org_client", "organization_id", "client_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
@@ -53,6 +55,11 @@ class Vehicle(Base):
 
 class ServiceVisit(Base):
     __tablename__ = "service_visits"
+    __table_args__ = (
+        Index("ix_visits_org_next_due", "organization_id", "next_due_at"),
+        Index("ix_visits_org_client_visited", "organization_id", "client_id", "visited_at"),
+        CheckConstraint("amount_minor IS NULL OR amount_minor >= 0", name="ck_visits_nonnegative_amount"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
@@ -76,6 +83,7 @@ class ReminderRule(Base):
 
 class ConsentRecord(Base):
     __tablename__ = "consent_records"
+    __table_args__ = (Index("ix_consents_org_client_purpose_time", "organization_id", "client_id", "purpose", "captured_at"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), index=True)
