@@ -21,9 +21,13 @@ def send_verification_email(to_email: str, code: str, purpose: str) -> None:
         )
         return
 
+    sender = settings.smtp_from_email or settings.smtp_username
+    if not sender:
+        raise RuntimeError("Set SMTP_FROM_EMAIL or SMTP_USERNAME to a verified sender address")
+
     message = EmailMessage()
     message["Subject"] = "Код подтверждения AutoFlow"
-    message["From"] = settings.smtp_from_email
+    message["From"] = sender
     message["To"] = to_email
     message.set_content(
         "Здравствуйте!\n\n"
