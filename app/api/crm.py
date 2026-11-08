@@ -102,6 +102,7 @@ def create_visit(payload: VisitIn, db: Session = Depends(get_db), user: User = D
 
 @router.get("/smart-return")
 def smart_return(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    org = user.organization_id
     now = datetime.now(timezone.utc)
     rows = db.execute(select(ServiceVisit, Client).join(Client, Client.id == ServiceVisit.client_id)
         .where(ServiceVisit.organization_id == user.organization_id, Client.is_blocked.is_(False),
