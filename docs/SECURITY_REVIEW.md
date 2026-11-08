@@ -5,6 +5,10 @@ Scope: source-level review of the current MVP branch and automated CI checks. Th
 
 ## Implemented safeguards
 - Passwords are stored as Argon2id hashes; plaintext passwords are not persisted.
+- Production registration requires a one-time email code; code hashes are stored, codes expire after 10 minutes and allow at most five attempts.
+- Email-code requests are rate-limited by IP and email, with a cooldown and hourly request cap.
+- Existing accounts can verify their current email from the profile without recreating an account.
+- Users can edit their name and phone; changing the phone clears its verification state.
 - Session tokens are signed and time-limited; cookies are HttpOnly and SameSite=Lax, Secure in production.
 - Login and registration are rate-limited per client IP.
 - Unsafe browser requests with a mismatched Origin are rejected.
@@ -32,7 +36,7 @@ Scope: source-level review of the current MVP branch and automated CI checks. Th
 
 ## Remaining risks / required before real customer data
 - Sessions are stateless signed cookies; logging out removes the browser cookie but does not revoke a copied token server-side before expiry.
-- No MFA, email verification, password reset, role/permission matrix or admin audit trail yet.
+- No MFA, password reset, phone/SMS verification, role/permission matrix or admin audit trail yet.
 - No dedicated CSRF token mechanism; Origin checks and SameSite cookies are defense-in-depth, not a substitute for a full deployment review.
 - No verified backup/restore process, production monitoring, alerting or incident-response process.
 - PostgreSQL deployment, TLS termination, secret management and production migration rehearsal have not been validated here.
