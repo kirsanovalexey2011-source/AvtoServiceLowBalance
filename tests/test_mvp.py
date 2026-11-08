@@ -98,5 +98,22 @@ def test_tenant_isolation_and_cross_origin_rejection(client: TestClient) -> None
         "full_name": "Injected"
     }).status_code == 403
 
+def test_deferred_service_recovery_is_tenant_scoped(client: TestClient) -> None:
+    client.post("/api/auth/register", json={
+        "organization_name": "Recovery Garage", "email": "recovery@example.com", "password": "strong-pass-123"
+    })
+    customer = client.post("/api/clients", json={"full_name": "Павел Смирнов"}).json()
+    created = client.post("/api/deferred-services", json={
+        "client_id": customer["id"], "service_name": "Ремонт подвески",
+        "estimated_amount_rub": 18000, "notes": "Клиент попросил подумать"
+    })
+    assert created.status_code == 201
+    assert client.get("/api/dashboard").json()["deferred_count"] == 1
+    assert client.get("/api/dashboard").json()["deferred_value_rub"] == 18000
+    item_id = created.json()["id"]
+    assert client.patch(f"/api/deferred-services/{item_id}", json={"status": "recovered"}).status_code == 200
+    assert client.get("/api/dashboard").json()["deferred_count"] == 0
+    assert client.get("/api/dashboard").json()["deferred_value_rub"] == 0
+
 def test_workspace_requires_authentication(client: TestClient) -> None:
     assert client.get("/api/clients").status_code == 401
