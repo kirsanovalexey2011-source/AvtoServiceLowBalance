@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
-from app.models import Client, ServiceVisit, User, Vehicle
+from app.models import Client, ConsentRecord, ServiceVisit, User, Vehicle
 
 router = APIRouter(prefix="/api", tags=["workspace"])
 
@@ -13,6 +13,12 @@ class ClientIn(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=254)
     notes: str | None = None
+
+class ConsentIn(BaseModel):
+    channel: str = Field(min_length=2, max_length=30)
+    purpose: str = Field(default="marketing", min_length=2, max_length=40)
+    granted: bool
+    evidence_reference: str | None = Field(default=None, max_length=500)
 
 class VehicleIn(BaseModel):
     client_id: int
@@ -57,6 +63,15 @@ def create_client(payload: ClientIn, db: Session = Depends(get_db), user: User =
     db.add(client); db.commit(); db.refresh(client)
     return {"id": client.id, "full_name": client.full_name}
 
+@router.post("/clients/{client_id}/consents", status_code=201)
+def record_consent(client_id: int, payload: ConsentIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    client = owned_client(db, user, client_id)
+    if payload.purpose != "marketing":
+        raise HTTPException(status_code=400, detail="Поддерживается только отдельная фиксация согласия на маркетинговые сообщения")
+    record = ConsentRecord(organization_id=user.organization_id, client_id=client.id, **payload.model_dump())
+    db.add(record); db.commit(); db.refresh(record)
+    return {"id": record.id, "granted": record.granted, "purpose": record.purpose}
+
 @router.post("/vehicles", status_code=201)
 def create_vehicle(payload: VehicleIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     owned_client(db, user, payload.client_id)
@@ -97,7 +112,15 @@ def smart_return(db: Session = Depends(get_db), user: User = Depends(get_current
     for visit, client in rows:
         if client.id in seen: continue
         seen.add(client.id)
+        consent = db.scalar(select(ConsentRecord).where(
+            ConsentRecord.organization_id == org, ConsentRecord.client_id == client.id,
+            ConsentRecord.purpose == "marketing", ConsentRecord.granted.is_(True),
+            ConsentRecord.revoked_at.is_(None)
+        ).order_by(ConsentRecord.captured_at.desc()))
+        draft = None
+        if consent:
+            draft = f"Здравствуйте, {client.full_name}! Напоминаем, что для вашего автомобиля актуально обслуживание: {visit.service_name}. Будем рады подобрать удобное время для визита."
         result.append({"client_id": client.id, "client": client.full_name, "phone": client.phone,
             "service": visit.service_name, "due_at": visit.next_due_at.isoformat(),
-            "draft": f"Здравствуйте, {client.full_name}! Напоминаем, что для вашего автомобиля актуально обслуживание: {visit.service_name}. Будем рады подобрать удобное время для визита."})
+            "has_marketing_consent": bool(consent), "draft": draft})
     return result
