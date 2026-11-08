@@ -17,3 +17,13 @@ def get_current_user(autoflow_session: str | None = Cookie(default=None), db: Se
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Требуется вход")
     return user
+
+
+def get_optional_current_user(
+    autoflow_session: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Return the signed-in user when a valid session cookie is present."""
+    user_id = read_session_token(autoflow_session) if autoflow_session else None
+    user = db.get(User, user_id) if user_id else None
+    return user if user and user.is_active else None
