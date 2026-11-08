@@ -6,6 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from app.api.health import router as health_router
 from app.api.auth import limiter, router as auth_router
 from app.api.crm import router as crm_router
+from app.api.marketplace import router as marketplace_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -53,6 +54,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(health_router, tags=["health"])
 app.include_router(auth_router)
 app.include_router(crm_router)
+app.include_router(marketplace_router)
 app.include_router(web_router)
 
 @app.get("/api")
