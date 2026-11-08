@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     secret_key: str = "development-only-change-me"
     database_url: str = "sqlite:///./autoflow.db"
     platform_admin_email: str = "kirsanovalexey2010@yandex.ru"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str = "noreply@autoflow.local"
+    smtp_use_tls: bool = True
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")
