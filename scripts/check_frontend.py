@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.web import PAGE
 from app.marketplace_web import MARKETPLACE, PARTNER, PLATFORM
+from app.role_portal import HOME, ADMIN_LOGIN
 
 def extract(page: str, destination: Path, label: str) -> None:
     match = re.search(r"<script>(.*?)</script>", page, flags=re.DOTALL)
@@ -19,3 +20,4 @@ extract(PAGE, Path(str(base) + "-dashboard.js"), "dashboard")
 extract(MARKETPLACE, Path(str(base) + "-marketplace.js"), "marketplace")
 extract(PARTNER, Path(str(base) + "-partner.js"), "partner")
 extract(PLATFORM, Path(str(base) + "-platform.js"), "platform")
+extract(ADMIN_LOGIN, Path(str(base) + "-admin-login.js"), "admin login")
