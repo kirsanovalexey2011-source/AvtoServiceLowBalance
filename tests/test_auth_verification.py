@@ -15,6 +15,8 @@ from app.main import app
 
 @pytest.fixture()
 def client() -> Generator[TestClient, None, None]:
+    # TestClient shares one IP across modules; reset counters to isolate tests.
+    auth_module.limiter._storage.reset()
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     testing_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
@@ -30,6 +32,7 @@ def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    auth_module.limiter._storage.reset()
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
