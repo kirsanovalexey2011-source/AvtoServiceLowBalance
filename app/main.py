@@ -6,7 +6,7 @@ from app.api.crm import router as crm_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.models import Client, ConsentRecord, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
+from app.models import Client, ConsentRecord, DeferredService, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
 from app.web import router as web_router
 
 app = FastAPI(
