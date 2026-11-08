@@ -22,5 +22,5 @@ jobs:
       - run: bandit -r app -ll
       - run: pip-audit -r requirements.txt
       - run: pytest -q
-      - run: python scripts/check_frontend.py /tmp/autoflow-dashboard.js
-      - run: node --check /tmp/autoflow-dashboard.js
+      - run: python scripts/check_frontend.py /tmp/autoflow
+      - run: for file in /tmp/autoflow-*.js; do node --check "$file"; done
