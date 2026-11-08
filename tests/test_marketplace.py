@@ -86,3 +86,40 @@ def test_role_selection_and_workspace_pages(client: TestClient) -> None:
     assert client.get("/platform-login").status_code == 200
     assert client.get("/workspace").status_code == 200
     assert client.get("/marketplace").status_code == 200
+
+def test_public_availability_returns_free_slots_and_hides_booked_time(client: TestClient) -> None:
+    register(client)
+    profile = client.put("/api/partner/profile", json={
+        "public_name": "Сервис Север", "city": "Санкт-Петербург",
+        "address": "Санкт-Петербург, Невский проспект, 10",
+        "phone": "+79990000000",
+    })
+    assert profile.status_code == 200
+    service = client.post("/api/partner/services", json={
+        "title": "Диагностика", "category": "Диагностика",
+        "duration_minutes": 60,
+    })
+    assert service.status_code == 201
+    assert client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+    day = (datetime.now(timezone.utc) + timedelta(days=3)).date()
+    query = {"service_id": service.json()["id"], "day": day.isoformat()}
+    available = client.get("/api/marketplace/availability", params=query)
+    assert available.status_code == 200
+    data = available.json()
+    assert data["working_hours"] == {"from": "09:00", "to": "18:00"}
+    assert data["slot_step_minutes"] == 30
+    assert "2026-" not in data["slots"][0] if data["slots"] else True
+
+    first_slot = datetime.fromisoformat(data["slots"][0])
+    booking = client.post("/api/marketplace/bookings", json={
+        "service_id": service.json()["id"],
+        "customer_name": "Алексей",
+        "customer_phone": "+79991112233",
+        "starts_at": first_slot.isoformat(),
+    })
+    assert booking.status_code == 201
+
+    refreshed = client.get("/api/marketplace/availability", params=query)
+    assert refreshed.status_code == 200
+    assert first_slot.isoformat() not in refreshed.json()["slots"]
