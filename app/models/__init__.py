@@ -1,3 +1,3 @@
-from app.models.entities import Client, ConsentRecord, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
+from app.models.entities import Client, ConsentRecord, DeferredService, Organization, Reminder, ReminderRule, ServiceVisit, User, Vehicle
 
-__all__ = ["Organization", "User", "Client", "Vehicle", "ServiceVisit", "ReminderRule", "Reminder", "ConsentRecord"]
+__all__ = ["Organization", "User", "Client", "Vehicle", "ServiceVisit", "ReminderRule", "Reminder", "ConsentRecord", "DeferredService"]
