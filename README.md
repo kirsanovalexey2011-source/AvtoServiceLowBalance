@@ -1,21 +1,39 @@
 # AutoFlow
 
-Customer retention platform for automotive businesses.
+AutoFlow — рабочий MVP-проект для автосервисов: клиентская база, история визитов и очередь возврата клиентов.
 
-AutoFlow helps automotive businesses identify customers due for follow-up, manage consent-aware return workflows, and measure repeat visits attributable to customer outreach.
+## Что уже работает
+- Регистрация организации и владельца, вход и выход.
+- Хеширование паролей Argon2id; сессия в HttpOnly cookie.
+- Изоляция данных по организации для клиентских, автомобильных и сервисных записей.
+- Создание клиентов, автомобилей и истории обслуживания через API.
+- Панель с количеством клиентов, визитов, сроками возврата и суммой учтённых визитов.
+- Smart Return: находит клиентов с наступившим сроком следующего обслуживания.
+- Черновик маркетингового сообщения появляется только при явно зафиксированном согласии. Никаких автоматических рассылок нет.
+- Swagger UI: `/docs`; health check: `/health`.
 
-## Product focus
-The first release focuses on independent automotive service shops. The architecture is intended to support other automotive business types after validation.
+## Локальный запуск (Windows PowerShell)
 
-## Status
-Initial repository bootstrap. See `docs/` for product requirements, market research, interview guide, roadmap, and security checklist.
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn app.main:app --reload
+```
 
-## Planned stack
-- Python 3.12+
-- FastAPI
-- SQLAlchemy 2
-- PostgreSQL (SQLite for local development)
-- Pytest
+Откройте http://127.0.0.1:8000 и зарегистрируйте тестовую организацию.
 
-## Safety
-Do not use real customer data in development. The first MVP creates message drafts for staff review; it does not send unattended bulk messages. Complete legal and privacy review before processing real personal data.
+## Тесты
+
+В отдельном терминале с активированным окружением:
+
+```powershell
+python -m pytest -q
+```
+
+## Важные ограничения перед реальными клиентами
+Это MVP для локального тестирования, не готовый production SaaS. По умолчанию используется SQLite и локальный ключ из настроек. Перед публичным запуском задайте длинный случайный `SECRET_KEY`, используйте PostgreSQL и миграции Alembic, HTTPS, резервное копирование, rate limiting, аудит действий и проверку CSRF/сессий. Нужны юридическая проверка обработки персональных данных и подтверждений согласия, политика конфиденциальности и процедура удаления/экспорта данных. Не загружайте реальные клиентские данные до такой проверки.
+
+## Стек
+Python 3.12+, FastAPI, SQLAlchemy 2, SQLite для разработки, Argon2id, itsdangerous, pytest.
