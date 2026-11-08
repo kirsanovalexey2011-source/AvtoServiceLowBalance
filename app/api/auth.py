@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,8 +6,11 @@ from app.api.deps import get_current_user, get_db
 from app.core.config import settings
 from app.core.security import create_session_token, hash_password, verify_password
 from app.models import Organization, User
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
+limiter = Limiter(key_func=get_remote_address)
 
 class RegisterIn(BaseModel):
     organization_name: str = Field(min_length=2, max_length=160)
@@ -26,7 +29,8 @@ def set_session(response: Response, user_id: int) -> None:
     )
 
 @router.post("/register", status_code=201)
-def register(payload: RegisterIn, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def register(request: Request, payload: RegisterIn, response: Response, db: Session = Depends(get_db)):
     email = str(payload.email).strip().lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=409, detail="Аккаунт с такой почтой уже существует")
@@ -41,7 +45,8 @@ def register(payload: RegisterIn, response: Response, db: Session = Depends(get_
     return {"id": user.id, "email": user.email, "organization": org.name}
 
 @router.post("/login")
-def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, payload: LoginIn, response: Response, db: Session = Depends(get_db)):
     email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(User.email == email))
     if not user or not verify_password(payload.password, user.password_hash):
