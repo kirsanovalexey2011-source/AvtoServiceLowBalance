@@ -57,12 +57,38 @@ def test_client_visit_and_smart_return(client: TestClient) -> None:
     assert queue[0]["draft"] is None
     consent = client.post("/api/clients/" + str(client_id) + "/consents", json={
         "channel": "sms", "purpose": "marketing", "granted": True,
-        "evidence_reference": "Test consent"
+        "evidence_reference": "Test consent record #123"
     })
     assert consent.status_code == 201
     queue = client.get("/api/smart-return").json()
     assert queue[0]["has_marketing_consent"] is True
     assert "Иван Петров" in queue[0]["draft"]
+    # A later refusal must override the earlier approval.
+    revoked = client.post("/api/clients/" + str(client_id) + "/consents", json={
+        "channel": "sms", "purpose": "marketing", "granted": False,
+    })
+    assert revoked.status_code == 201
+    queue = client.get("/api/smart-return").json()
+    assert queue[0]["has_marketing_consent"] is False
+    assert queue[0]["draft"] is None
+
+def test_tenant_isolation_and_cross_origin_rejection(client: TestClient) -> None:
+    client.post("/api/auth/register", json={
+        "organization_name": "Garage One", "email": "one@example.com", "password": "strong-pass-123"
+    })
+    created = client.post("/api/clients", json={"full_name": "Private Customer"})
+    client_id = created.json()["id"]
+    client.post("/api/auth/logout")
+    client.post("/api/auth/register", json={
+        "organization_name": "Garage Two", "email": "two@example.com", "password": "strong-pass-123"
+    })
+    assert client.get("/api/clients").json() == []
+    assert client.post("/api/vehicles", json={
+        "client_id": client_id, "make": "Toyota", "model": "Camry"
+    }).status_code == 404
+    assert client.post("/api/clients", headers={"Origin": "https://attacker.example"}, json={
+        "full_name": "Injected"
+    }).status_code == 403
 
 def test_workspace_requires_authentication(client: TestClient) -> None:
     assert client.get("/api/clients").status_code == 401
