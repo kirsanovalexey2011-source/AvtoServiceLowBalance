@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -55,7 +55,9 @@ def test_partner_profile_service_public_listing_and_booking(client: TestClient) 
     results = client.get("/api/marketplace/services?city=Санкт-Петербург").json()
     assert len(results) == 1
     assert results[0]["business"] == "Гараж Север"
-    start = (datetime.now(timezone.utc) + timedelta(days=2)).replace(second=0, microsecond=0)
+    booking_day = (datetime.now(timezone.utc) + timedelta(days=2)).date()
+    moscow_tz = timezone(timedelta(hours=3))
+    start = datetime.combine(booking_day, time(hour=10), tzinfo=moscow_tz).astimezone(timezone.utc)
     payload = {"service_id": service.json()["id"], "customer_name": "Алексей",
                "customer_phone": "+79991112233", "starts_at": start.isoformat()}
     booking = client.post("/api/marketplace/bookings", json=payload)
