@@ -159,7 +159,9 @@ def test_concurrent_overlapping_bookings_only_reserve_once(tmp_path) -> None:
     main_module.engine = engine
     app.dependency_overrides[get_db] = override_db
     try:
-        with TestClient(app) as setup_client, TestClient(app) as first_client, TestClient(app) as second_client:
+        with TestClient(app) as setup_client, \
+             TestClient(app, client=("127.0.0.1", 50001)) as first_client, \
+             TestClient(app, client=("127.0.0.2", 50002)) as second_client:
             register(setup_client)
             profile = setup_client.put("/api/partner/profile", json={
                 "public_name": "Сервис Север", "city": "Санкт-Петербург",
