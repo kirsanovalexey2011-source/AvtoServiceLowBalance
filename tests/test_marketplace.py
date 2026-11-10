@@ -1,11 +1,14 @@
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.main import app
+import app.main as main_module
+from app.models import Appointment
 from app.api.deps import get_db
 from app.core.config import settings
 from app.db.base import Base
@@ -132,3 +135,70 @@ def test_public_availability_returns_free_slots_and_hides_booked_time(client: Te
     refreshed = client.get("/api/marketplace/availability", params=query)
     assert refreshed.status_code == 200
     assert first_slot.isoformat() not in refreshed.json()["slots"]
+
+
+def test_concurrent_overlapping_bookings_only_reserve_once(tmp_path) -> None:
+    database_path = tmp_path / "autoflow-booking-race.sqlite3"
+    engine = create_engine(
+        f"sqlite:///{database_path.as_posix()}",
+        connect_args={"check_same_thread": False, "timeout": 15},
+    )
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    def override_db():
+        db = TestingSession()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    old_admin = settings.platform_admin_email
+    old_engine = main_module.engine
+    settings.platform_admin_email = "platform@example.com"
+    main_module.engine = engine
+    app.dependency_overrides[get_db] = override_db
+    try:
+        with TestClient(app) as setup_client, TestClient(app) as first_client, TestClient(app) as second_client:
+            register(setup_client)
+            profile = setup_client.put("/api/partner/profile", json={
+                "public_name": "Сервис Север", "city": "Санкт-Петербург",
+                "address": "Санкт-Петербург, Невский проспект, 10",
+                "phone": "+79990000000",
+            })
+            assert profile.status_code == 200
+            service = setup_client.post("/api/partner/services", json={
+                "title": "Диагностика", "category": "Диагностика",
+                "duration_minutes": 60,
+            })
+            assert service.status_code == 201
+            assert setup_client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+            booking_day = (datetime.now(timezone.utc) + timedelta(days=3)).date()
+            moscow_tz = timezone(timedelta(hours=3))
+            starts = [
+                datetime.combine(booking_day, time(hour=10), tzinfo=moscow_tz),
+                datetime.combine(booking_day, time(hour=10, minute=30), tzinfo=moscow_tz),
+            ]
+            payloads = [{
+                "service_id": service.json()["id"],
+                "customer_name": f"Клиент {index + 1}",
+                "customer_phone": f"+7999000000{index + 1}",
+                "starts_at": starts[index].isoformat(),
+            } for index in range(2)]
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                first = executor.submit(first_client.post, "/api/marketplace/bookings", json=payloads[0])
+                second = executor.submit(second_client.post, "/api/marketplace/bookings", json=payloads[1])
+                statuses = [first.result().status_code, second.result().status_code]
+
+            assert sorted(statuses) == [201, 409]
+
+        with TestingSession() as db:
+            assert db.scalar(select(func.count()).select_from(Appointment)) == 1
+    finally:
+        settings.platform_admin_email = old_admin
+        main_module.engine = old_engine
+        app.dependency_overrides.clear()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()

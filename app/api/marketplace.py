@@ -1,14 +1,41 @@
 from datetime import date, datetime, time, timedelta, timezone
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.api.auth import limiter
 from app.core.config import settings
-from app.models import Appointment, BusinessProfile, Client, Organization, ServiceOffering, User
+from app.models import Appointment, BookingLock, BusinessProfile, Client, Organization, ServiceOffering, User
 
 router = APIRouter(tags=["marketplace"])
+
+
+def _lock_organization_bookings(db: Session, organization_id: int) -> None:
+    """Serialize booking writes for one organization across SQLite and PostgreSQL."""
+    dialect = db.get_bind().dialect.name
+    values = {"organization_id": organization_id}
+    if dialect == "sqlite":
+        statement = sqlite_insert(BookingLock).values(**values).on_conflict_do_nothing(
+            index_elements=[BookingLock.organization_id]
+        )
+    elif dialect == "postgresql":
+        statement = postgresql_insert(BookingLock).values(**values).on_conflict_do_nothing(
+            index_elements=[BookingLock.organization_id]
+        )
+    else:
+        raise RuntimeError(f"Safe booking locks are not configured for database dialect: {dialect}")
+
+    # The upsert creates the lock row on first use. Updating it obtains a write lock
+    # that is held until the surrounding booking transaction commits or rolls back.
+    db.execute(statement)
+    db.execute(
+        update(BookingLock)
+        .where(BookingLock.organization_id == organization_id)
+        .values(updated_at=datetime.now(timezone.utc))
+    )
 
 class ProfileIn(BaseModel):
     public_name: str = Field(min_length=2, max_length=160)
@@ -158,33 +185,56 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
         ServiceOffering.id == payload.service_id, ServiceOffering.is_active.is_(True)))
     if not service:
         raise HTTPException(status_code=404, detail="Услуга недоступна")
-    profile = db.scalar(select(BusinessProfile).where(
-        BusinessProfile.organization_id == service.organization_id, BusinessProfile.is_published.is_(True)))
-    if not profile:
-        raise HTTPException(status_code=404, detail="Автосервис пока не принимает онлайн-записи")
+    organization_id = service.organization_id
+
     start = payload.starts_at
     if start.tzinfo is None:
         raise HTTPException(status_code=422, detail="Укажите часовой пояс времени записи")
     start = start.astimezone(timezone.utc)
+    local_start = start.astimezone(timezone(timedelta(hours=3)))
+    if local_start.minute not in {0, 30} or local_start.second or local_start.microsecond:
+        raise HTTPException(status_code=422, detail="Выберите время из доступных 30-минутных интервалов")
+    if local_start.hour < 9 or local_start.hour >= 18:
+        raise HTTPException(status_code=422, detail="Онлайн-запись доступна с 09:00 до 18:00 по московскому времени")
+
+    # End the read transaction before taking the per-organization write lock.
+    # This is important for SQLite, where a deferred read transaction cannot
+    # always be upgraded safely after another writer has committed.
+    db.commit()
+    _lock_organization_bookings(db, organization_id)
+
+    # Re-read mutable service/profile data after acquiring the lock.
+    service = db.scalar(select(ServiceOffering).where(
+        ServiceOffering.id == payload.service_id,
+        ServiceOffering.organization_id == organization_id,
+        ServiceOffering.is_active.is_(True),
+    ))
+    if not service:
+        raise HTTPException(status_code=404, detail="Услуга недоступна")
+    profile = db.scalar(select(BusinessProfile).where(
+        BusinessProfile.organization_id == organization_id,
+        BusinessProfile.is_published.is_(True),
+    ))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Автосервис пока не принимает онлайн-записи")
+
     if start < datetime.now(timezone.utc) + timedelta(minutes=15):
         raise HTTPException(status_code=422, detail="Выберите время не менее чем через 15 минут")
     end = start + timedelta(minutes=service.duration_minutes)
-    service_timezone = timezone(timedelta(hours=3))
-    local_start = start.astimezone(service_timezone)
-    local_end = end.astimezone(service_timezone)
-    if local_start.minute not in {0, 30} or local_start.second or local_start.microsecond:
-        raise HTTPException(status_code=422, detail="Выберите время из доступных 30-минутных интервалов")
-    if local_start.hour < 9 or (local_end.hour > 18 or (local_end.hour == 18 and local_end.minute > 0)):
+    local_end = end.astimezone(timezone(timedelta(hours=3)))
+    if local_end.hour > 18 or (local_end.hour == 18 and local_end.minute > 0):
         raise HTTPException(status_code=422, detail="Онлайн-запись доступна с 09:00 до 18:00 по московскому времени")
+
     conflict = db.scalar(select(Appointment.id).where(
-        Appointment.organization_id == service.organization_id,
+        Appointment.organization_id == organization_id,
         Appointment.status.in_(["pending", "confirmed"]),
         Appointment.starts_at < end, Appointment.ends_at > start,
     ).limit(1))
     if conflict:
         raise HTTPException(status_code=409, detail="Это время уже занято. Выберите другое.")
+
     booking = Appointment(
-        organization_id=service.organization_id, service_id=service.id,
+        organization_id=organization_id, service_id=service.id,
         customer_name=payload.customer_name.strip(), customer_phone=payload.customer_phone.strip(),
         customer_email=str(payload.customer_email).lower() if payload.customer_email else None,
         starts_at=start, ends_at=end, comment=payload.comment, status="pending",
@@ -244,13 +294,25 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
         Appointment.id == booking_id, Appointment.organization_id == user.organization_id))
     if not booking:
         raise HTTPException(status_code=404, detail="Запись не найдена")
+    organization_id = booking.organization_id
+
+    db.commit()
+    _lock_organization_bookings(db, organization_id)
+    booking = db.scalar(select(Appointment).where(
+        Appointment.id == booking_id, Appointment.organization_id == organization_id))
+    if not booking:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+
     if payload.status == "confirmed":
         conflict = db.scalar(select(Appointment.id).where(
-            Appointment.organization_id == user.organization_id, Appointment.id != booking.id,
-            Appointment.status == "confirmed", Appointment.starts_at < booking.ends_at,
-            Appointment.ends_at > booking.starts_at).limit(1))
+            Appointment.organization_id == organization_id,
+            Appointment.id != booking.id,
+            Appointment.status.in_(["pending", "confirmed"]),
+            Appointment.starts_at < booking.ends_at,
+            Appointment.ends_at > booking.starts_at,
+        ).limit(1))
         if conflict:
-            raise HTTPException(status_code=409, detail="На это время уже подтверждена другая запись")
+            raise HTTPException(status_code=409, detail="На это время уже есть другая активная запись")
     booking.status = payload.status
     db.commit()
     return {"id": booking.id, "status": booking.status}
