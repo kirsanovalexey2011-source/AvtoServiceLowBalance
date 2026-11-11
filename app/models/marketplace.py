@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from datetime import datetime, time, timezone
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -50,6 +50,22 @@ class Appointment(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BusinessWorkingHours(Base):
+    __tablename__ = "business_working_hours"
+    __table_args__ = (
+        CheckConstraint("weekday >= 0 AND weekday <= 6", name="ck_business_working_hours_weekday"),
+        CheckConstraint(
+            "(is_closed = true) OR (opens_at IS NOT NULL AND closes_at IS NOT NULL AND opens_at < closes_at)",
+            name="ck_business_working_hours_window",
+        ),
+    )
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), primary_key=True)
+    weekday: Mapped[int] = mapped_column(Integer, primary_key=True)
+    is_closed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    opens_at: Mapped[time | None] = mapped_column(Time, nullable=True)
+    closes_at: Mapped[time | None] = mapped_column(Time, nullable=True)
 
 
 class BookingLock(Base):

@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.api.auth import limiter
 from app.core.config import settings
-from app.models import Appointment, BookingLock, BusinessProfile, Client, Organization, ServiceOffering, User
+from app.models import Appointment, BookingLock, BusinessProfile, BusinessWorkingHours, Client, Organization, ServiceOffering, User
 
 router = APIRouter(tags=["marketplace"])
 
@@ -73,6 +73,91 @@ class BookingIn(BaseModel):
 class BookingStatusIn(BaseModel):
     status: str = Field(pattern="^(confirmed|cancelled|completed)$")
 
+
+class WorkingDayIn(BaseModel):
+    weekday: int = Field(ge=0, le=6)
+    is_closed: bool = False
+    opens_at: time | None = None
+    closes_at: time | None = None
+
+    @model_validator(mode="after")
+    def validate_working_window(self):
+        if self.is_closed:
+            return self
+        if self.opens_at is None or self.closes_at is None:
+            raise ValueError("Для рабочего дня укажите время открытия и закрытия")
+        for value in (self.opens_at, self.closes_at):
+            if value.minute not in {0, 30} or value.second or value.microsecond:
+                raise ValueError("Время должно быть кратно 30 минутам")
+        if self.opens_at >= self.closes_at:
+            raise ValueError("Время закрытия должно быть позже времени открытия")
+        return self
+
+
+class WorkingHoursIn(BaseModel):
+    days: list[WorkingDayIn] = Field(min_length=7, max_length=7)
+
+    @field_validator("days")
+    @classmethod
+    def require_each_weekday_once(cls, days: list[WorkingDayIn]) -> list[WorkingDayIn]:
+        if {day.weekday for day in days} != set(range(7)):
+            raise ValueError("Укажите каждый день недели ровно один раз")
+        return days
+
+
+MOSCOW_TZ = timezone(timedelta(hours=3))
+DEFAULT_OPENING_TIME = time(hour=9)
+DEFAULT_CLOSING_TIME = time(hour=18)
+
+
+def _get_working_day(db: Session, organization_id: int, weekday: int) -> dict:
+    record = db.scalar(select(BusinessWorkingHours).where(
+        BusinessWorkingHours.organization_id == organization_id,
+        BusinessWorkingHours.weekday == weekday,
+    ))
+    if record is None:
+        return {
+            "weekday": weekday,
+            "is_closed": False,
+            "opens_at": DEFAULT_OPENING_TIME,
+            "closes_at": DEFAULT_CLOSING_TIME,
+        }
+    return {
+        "weekday": weekday,
+        "is_closed": record.is_closed,
+        "opens_at": record.opens_at,
+        "closes_at": record.closes_at,
+    }
+
+
+def _working_day_payload(db: Session, organization_id: int, weekday: int) -> dict:
+    day = _get_working_day(db, organization_id, weekday)
+    return {
+        "weekday": weekday,
+        "is_closed": day["is_closed"],
+        "opens_at": day["opens_at"].isoformat(timespec="minutes") if day["opens_at"] else None,
+        "closes_at": day["closes_at"].isoformat(timespec="minutes") if day["closes_at"] else None,
+    }
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _booking_fits_working_day(start: datetime, end: datetime, working_day: dict) -> bool:
+    if working_day["is_closed"]:
+        return False
+    local_start = _as_utc(start).astimezone(MOSCOW_TZ)
+    local_end = _as_utc(end).astimezone(MOSCOW_TZ)
+    if local_start.date() != local_end.date():
+        return False
+    opening = datetime.combine(local_start.date(), working_day["opens_at"], tzinfo=MOSCOW_TZ)
+    closing = datetime.combine(local_start.date(), working_day["closes_at"], tzinfo=MOSCOW_TZ)
+    return local_start >= opening and local_end <= closing
+
+
 def profile_payload(profile: BusinessProfile, services_count: int = 0) -> dict:
     return {
         "id": profile.id, "organization_id": profile.organization_id,
@@ -127,7 +212,7 @@ def public_availability(
     utc_offset_minutes: int = Query(default=180, ge=-720, le=840),
     db: Session = Depends(get_db),
 ):
-    """Return 30-minute start slots during the default 09:00–18:00 local service window."""
+    """Return 30-minute start slots within the partner's configured weekly hours."""
     service = db.scalar(select(ServiceOffering).where(
         ServiceOffering.id == service_id, ServiceOffering.is_active.is_(True)))
     if not service:
@@ -138,9 +223,21 @@ def public_availability(
     if not profile:
         raise HTTPException(status_code=404, detail="Автосервис пока не принимает онлайн-записи")
 
-    local_tz = timezone(timedelta(minutes=utc_offset_minutes))
-    opening = datetime.combine(day, time(hour=9), tzinfo=local_tz)
-    closing = datetime.combine(day, time(hour=18), tzinfo=local_tz)
+    if utc_offset_minutes != 180:
+        raise HTTPException(status_code=422, detail="Для текущего региона используйте московское время UTC+3")
+    local_tz = MOSCOW_TZ
+    working_day = _get_working_day(db, service.organization_id, day.weekday())
+    if working_day["is_closed"]:
+        return {
+            "service_id": service.id,
+            "date": day.isoformat(),
+            "timezone_offset_minutes": 180,
+            "working_hours": {"from": None, "to": None, "is_closed": True},
+            "slot_step_minutes": 30,
+            "slots": [],
+        }
+    opening = datetime.combine(day, working_day["opens_at"], tzinfo=local_tz)
+    closing = datetime.combine(day, working_day["closes_at"], tzinfo=local_tz)
     now = datetime.now(timezone.utc)
     duration = timedelta(minutes=service.duration_minutes)
     bookings = db.scalars(select(Appointment).where(
@@ -172,7 +269,11 @@ def public_availability(
         "service_id": service.id,
         "date": day.isoformat(),
         "timezone_offset_minutes": utc_offset_minutes,
-        "working_hours": {"from": "09:00", "to": "18:00"},
+        "working_hours": {
+            "from": working_day["opens_at"].isoformat(timespec="minutes"),
+            "to": working_day["closes_at"].isoformat(timespec="minutes"),
+            "is_closed": False,
+        },
         "slot_step_minutes": 30,
         "slots": slots,
     }
@@ -191,11 +292,9 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
     if start.tzinfo is None:
         raise HTTPException(status_code=422, detail="Укажите часовой пояс времени записи")
     start = start.astimezone(timezone.utc)
-    local_start = start.astimezone(timezone(timedelta(hours=3)))
+    local_start = start.astimezone(MOSCOW_TZ)
     if local_start.minute not in {0, 30} or local_start.second or local_start.microsecond:
         raise HTTPException(status_code=422, detail="Выберите время из доступных 30-минутных интервалов")
-    if local_start.hour < 9 or local_start.hour >= 18:
-        raise HTTPException(status_code=422, detail="Онлайн-запись доступна с 09:00 до 18:00 по московскому времени")
 
     # End the read transaction before taking the per-organization write lock.
     # This is important for SQLite, where a deferred read transaction cannot
@@ -221,9 +320,9 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
     if start < datetime.now(timezone.utc) + timedelta(minutes=15):
         raise HTTPException(status_code=422, detail="Выберите время не менее чем через 15 минут")
     end = start + timedelta(minutes=service.duration_minutes)
-    local_end = end.astimezone(timezone(timedelta(hours=3)))
-    if local_end.hour > 18 or (local_end.hour == 18 and local_end.minute > 0):
-        raise HTTPException(status_code=422, detail="Онлайн-запись доступна с 09:00 до 18:00 по московскому времени")
+    working_day = _get_working_day(db, organization_id, local_start.weekday())
+    if not _booking_fits_working_day(start, end, working_day):
+        raise HTTPException(status_code=422, detail="Выбранное время не соответствует графику работы автосервиса")
 
     conflict = db.scalar(select(Appointment.id).where(
         Appointment.organization_id == organization_id,
@@ -248,6 +347,70 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
 def partner_profile(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     profile = db.scalar(select(BusinessProfile).where(BusinessProfile.organization_id == user.organization_id))
     return profile_payload(profile) if profile else None
+
+@router.get("/api/partner/working-hours")
+def partner_working_hours(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return {"days": [_working_day_payload(db, user.organization_id, weekday) for weekday in range(7)]}
+
+
+@router.put("/api/partner/working-hours")
+def save_partner_working_hours(
+    payload: WorkingHoursIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # Serialize schedule changes with booking writes so a booking cannot be
+    # created using a schedule that was changed concurrently.
+    db.commit()
+    _lock_organization_bookings(db, user.organization_id)
+
+    proposed = {
+        day.weekday: {
+            "weekday": day.weekday,
+            "is_closed": day.is_closed,
+            "opens_at": None if day.is_closed else day.opens_at,
+            "closes_at": None if day.is_closed else day.closes_at,
+        }
+        for day in payload.days
+    }
+    now = datetime.now(timezone.utc)
+    active_bookings = db.scalars(select(Appointment).where(
+        Appointment.organization_id == user.organization_id,
+        Appointment.status.in_(["pending", "confirmed"]),
+        Appointment.starts_at >= now,
+    )).all()
+    for booking in active_bookings:
+        start = _as_utc(booking.starts_at)
+        end = _as_utc(booking.ends_at)
+        weekday = start.astimezone(MOSCOW_TZ).weekday()
+        if not _booking_fits_working_day(start, end, proposed[weekday]):
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Нельзя изменить график: есть ожидающие или подтверждённые записи вне нового времени. Сначала перенесите или отмените их.",
+            )
+
+    existing = {
+        item.weekday: item
+        for item in db.scalars(select(BusinessWorkingHours).where(
+            BusinessWorkingHours.organization_id == user.organization_id
+        )).all()
+    }
+    for weekday, day in proposed.items():
+        record = existing.get(weekday)
+        if record is None:
+            record = BusinessWorkingHours(
+                organization_id=user.organization_id,
+                weekday=weekday,
+            )
+            db.add(record)
+        record.is_closed = day["is_closed"]
+        record.opens_at = day["opens_at"]
+        record.closes_at = day["closes_at"]
+
+    db.commit()
+    return {"days": [_working_day_payload(db, user.organization_id, weekday) for weekday in range(7)]}
+
 
 @router.put("/api/partner/profile")
 def save_partner_profile(payload: ProfileIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

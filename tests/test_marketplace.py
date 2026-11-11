@@ -204,3 +204,84 @@ def test_concurrent_overlapping_bookings_only_reserve_once(tmp_path) -> None:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(bind=engine)
         engine.dispose()
+
+
+def test_partner_working_hours_control_availability_and_preserve_existing_bookings(client: TestClient) -> None:
+    register(client)
+    profile = client.put("/api/partner/profile", json={
+        "public_name": "Сервис Север", "city": "Санкт-Петербург",
+        "address": "Санкт-Петербург, Невский проспект, 10",
+        "phone": "+79990000000",
+    })
+    assert profile.status_code == 200
+    service = client.post("/api/partner/services", json={
+        "title": "Диагностика", "category": "Диагностика", "duration_minutes": 60,
+    })
+    assert service.status_code == 201
+    assert client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+    defaults = client.get("/api/partner/working-hours")
+    assert defaults.status_code == 200
+    assert len(defaults.json()["days"]) == 7
+    assert all(day["opens_at"] == "09:00" and day["closes_at"] == "18:00" for day in defaults.json()["days"])
+
+    day = (datetime.now(timezone.utc) + timedelta(days=3)).date()
+    working_weekday = day.weekday()
+    invalid_schedule = {"days": [
+        {"weekday": 0, "is_closed": False, "opens_at": "10:00", "closes_at": "10:00"}
+        for _ in range(7)
+    ]}
+    assert client.put("/api/partner/working-hours", json=invalid_schedule).status_code == 422
+
+    schedule = {"days": [
+        {
+            "weekday": weekday,
+            "is_closed": weekday != working_weekday,
+            "opens_at": "10:00" if weekday == working_weekday else None,
+            "closes_at": "16:00" if weekday == working_weekday else None,
+        }
+        for weekday in range(7)
+    ]}
+    saved = client.put("/api/partner/working-hours", json=schedule)
+    assert saved.status_code == 200
+
+    query = {"service_id": service.json()["id"], "day": day.isoformat()}
+    availability = client.get("/api/marketplace/availability", params=query)
+    assert availability.status_code == 200
+    data = availability.json()
+    assert data["working_hours"] == {"from": "10:00", "to": "16:00", "is_closed": False}
+    assert datetime.fromisoformat(data["slots"][0]).astimezone(timezone(timedelta(hours=3))).time() == time(hour=10)
+
+    closed_day = day + timedelta(days=1)
+    closed = client.get("/api/marketplace/availability", params={
+        "service_id": service.json()["id"], "day": closed_day.isoformat(),
+    })
+    assert closed.status_code == 200
+    assert closed.json()["working_hours"]["is_closed"] is True
+    assert closed.json()["slots"] == []
+
+    outside = client.post("/api/marketplace/bookings", json={
+        "service_id": service.json()["id"],
+        "customer_name": "Алексей",
+        "customer_phone": "+79991112233",
+        "starts_at": f"{day.isoformat()}T09:30:00+03:00",
+    })
+    assert outside.status_code == 422
+
+    first_slot = datetime.fromisoformat(data["slots"][0])
+    booking = client.post("/api/marketplace/bookings", json={
+        "service_id": service.json()["id"],
+        "customer_name": "Алексей",
+        "customer_phone": "+79991112233",
+        "starts_at": first_slot.isoformat(),
+    })
+    assert booking.status_code == 201
+
+    closed_with_existing_booking = {"days": [
+        {"weekday": weekday, "is_closed": True, "opens_at": None, "closes_at": None}
+        for weekday in range(7)
+    ]}
+    rejected = client.put("/api/partner/working-hours", json=closed_with_existing_booking)
+    assert rejected.status_code == 409
+    current = client.get("/api/partner/working-hours").json()["days"]
+    assert current[working_weekday]["is_closed"] is False
