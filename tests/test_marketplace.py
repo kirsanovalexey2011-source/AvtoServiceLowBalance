@@ -112,7 +112,7 @@ def test_public_availability_returns_free_slots_and_hides_booked_time(client: Te
     available = client.get("/api/marketplace/availability", params=query)
     assert available.status_code == 200
     data = available.json()
-    assert data["working_hours"] == {"from": "09:00", "to": "18:00"}
+    assert data["working_hours"] == {"from": "09:00", "to": "18:00", "is_closed": False}
     assert data["slot_step_minutes"] == 30
 
     outside_hours = client.post("/api/marketplace/bookings", json={
