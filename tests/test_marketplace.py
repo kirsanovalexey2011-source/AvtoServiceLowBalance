@@ -285,3 +285,102 @@ def test_partner_working_hours_control_availability_and_preserve_existing_bookin
     assert rejected.status_code == 409
     current = client.get("/api/partner/working-hours").json()["days"]
     assert current[working_weekday]["is_closed"] is False
+
+
+
+def test_concurrent_overlapping_bookings_only_reserve_once_postgres() -> None:
+    """Exercise the production PostgreSQL row-lock path against a disposable local CI database."""
+    import os
+    from sqlalchemy.engine import make_url
+
+    postgres_url = os.getenv("AUTOFLOW_TEST_POSTGRES_URL")
+    if not postgres_url:
+        pytest.skip("Set AUTOFLOW_TEST_POSTGRES_URL to run the PostgreSQL integration test")
+
+    parsed_url = make_url(postgres_url)
+    if (
+        parsed_url.drivername != "postgresql+psycopg"
+        or parsed_url.host not in {"localhost", "127.0.0.1"}
+        or parsed_url.database != "autoflow_test"
+    ):
+        pytest.fail(
+            "AUTOFLOW_TEST_POSTGRES_URL must target the disposable local "
+            "autoflow_test database using postgresql+psycopg"
+        )
+
+    engine = create_engine(
+        postgres_url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=5,
+    )
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    old_admin = settings.platform_admin_email
+    old_engine = main_module.engine
+    schema_created = False
+    settings.platform_admin_email = "platform@example.com"
+    main_module.engine = engine
+
+    def override_db():
+        db = TestingSession()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        Base.metadata.create_all(bind=engine)
+        schema_created = True
+        with (
+            TestClient(app) as setup_client,
+            TestClient(app, client=("127.0.0.1", 50101)) as first_client,
+            TestClient(app, client=("127.0.0.2", 50102)) as second_client,
+        ):
+            register(setup_client)
+            profile = setup_client.put("/api/partner/profile", json={
+                "public_name": "PostgreSQL Garage", "city": "Санкт-Петербург",
+                "address": "Санкт-Петербург, Невский проспект, 10",
+                "phone": "+79990000000",
+            })
+            assert profile.status_code == 200
+            service = setup_client.post("/api/partner/services", json={
+                "title": "PostgreSQL diagnostics", "category": "Диагностика",
+                "duration_minutes": 60,
+            })
+            assert service.status_code == 201
+            assert setup_client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+            booking_day = (datetime.now(timezone.utc) + timedelta(days=3)).date()
+            moscow_tz = timezone(timedelta(hours=3))
+            starts = [
+                datetime.combine(booking_day, time(hour=10), tzinfo=moscow_tz),
+                datetime.combine(booking_day, time(hour=10, minute=30), tzinfo=moscow_tz),
+            ]
+            payloads = [{
+                "service_id": service.json()["id"],
+                "customer_name": f"PostgreSQL client {index + 1}",
+                "customer_phone": f"+7999000010{index + 1}",
+                "starts_at": starts[index].isoformat(),
+            } for index in range(2)]
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                first = executor.submit(
+                    first_client.post, "/api/marketplace/bookings", json=payloads[0]
+                )
+                second = executor.submit(
+                    second_client.post, "/api/marketplace/bookings", json=payloads[1]
+                )
+                statuses = [first.result().status_code, second.result().status_code]
+
+            assert sorted(statuses) == [201, 409]
+
+        with TestingSession() as db:
+            assert db.scalar(select(func.count()).select_from(Appointment)) == 1
+    finally:
+        settings.platform_admin_email = old_admin
+        main_module.engine = old_engine
+        app.dependency_overrides.clear()
+        if schema_created:
+            Base.metadata.drop_all(bind=engine)
+        engine.dispose()
