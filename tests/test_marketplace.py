@@ -384,3 +384,18 @@ def test_concurrent_overlapping_bookings_only_reserve_once_postgres() -> None:
         if schema_created:
             Base.metadata.drop_all(bind=engine)
         engine.dispose()
+
+def test_marketplace_booking_dialog_is_accessible_and_uses_native_date_selection(client: TestClient) -> None:
+    response = client.get("/marketplace")
+    assert response.status_code == 200
+    assert '<dialog id="bookingDialog"' in response.text
+    assert 'aria-labelledby="bookingTitle"' in response.text
+    assert 'id="bookingDate" name="day" type="date"' in response.text
+    assert 'autocomplete="name"' in response.text
+    assert 'autocomplete="tel"' in response.text
+    assert 'id="bookingSlots"' in response.text
+    assert 'aria-live="polite"' in response.text
+    assert 'id="bookingSuccess"' in response.text
+    assert "prompt(" not in response.text
+    assert "alert(" not in response.text
+

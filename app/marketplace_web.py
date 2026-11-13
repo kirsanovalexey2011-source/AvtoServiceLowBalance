@@ -8,15 +8,212 @@ MARKETPLACE = r"""
 <title>AutoFlow — найти автосервис</title>
 <style>
 :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172333;background:#f4f7f8}*{box-sizing:border-box}body{margin:0}header{background:#101d2b;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center}.brand{font-size:24px;font-weight:850;letter-spacing:-1px}.brand span{color:#6ed49d}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:auto;padding:32px 20px}.hero{padding:42px;border-radius:24px;background:linear-gradient(120deg,#12283a,#234e50);color:white}.hero h1{font-size:clamp(30px,5vw,52px);line-height:1.04;max-width:720px;margin:0 0 12px}.hero p{color:#c5d6dc;max-width:600px}.search{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;margin-top:25px}.search input,.search select{padding:14px;border:1px solid #d4dde3;border-radius:10px;background:white;font:inherit;min-width:0}.btn{border:0;border-radius:10px;padding:13px 18px;background:#71d5a0;color:#10251b;font-weight:800;cursor:pointer}.btn.dark{background:#172c3b;color:#fff}.section{margin:34px 0 16px;display:flex;justify-content:space-between;align-items:end;gap:12px}.section h2{margin:0;font-size:25px}.muted{color:#68798a}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:white;border:1px solid #e0e7ea;border-radius:16px;padding:20px;box-shadow:0 8px 24px #162d3b0a}.card h3{margin:0 0 6px}.chip{display:inline-block;background:#e8f7ef;color:#20764a;border-radius:20px;padding:5px 9px;font-size:12px;font-weight:700}.price{font-size:22px;font-weight:800;margin:12px 0}.card .btn{width:100%;margin-top:12px}.empty{padding:35px;text-align:center;color:#68798a;background:white;border-radius:16px}.toplink{color:#c9d7df;font-size:14px}@media(max-width:850px){.search{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.hero{padding:26px}.search,.grid{grid-template-columns:1fr}.wrap{padding:22px 14px}.section{align-items:start;flex-direction:column}}
+.booking-dialog{width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;border:1px solid #dce5e8;border-radius:20px;padding:24px;color:#172333;box-shadow:0 24px 80px #07152240}
+.booking-dialog::backdrop{background:#071522a8;backdrop-filter:blur(3px)}
+.dialog-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+.dialog-header h2{margin:12px 0 5px;font-size:25px}
+.dialog-header p{margin:0}
+.dialog-close{width:38px;height:38px;flex:0 0 38px;border:0;border-radius:50%;background:#edf2f4;color:#172333;font-size:25px;cursor:pointer}
+.booking-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.booking-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.booking-field.full{grid-column:1/-1}
+.booking-dialog label,.slot-heading{font-size:13px;font-weight:750;color:#34495a}
+.booking-dialog input,.booking-dialog textarea{width:100%;min-width:0;padding:12px;border:1px solid #cbd7dc;border-radius:9px;background:#fff;color:#172333;font:inherit}
+.booking-dialog input:focus,.booking-dialog textarea:focus,.slot-button:focus-visible,.btn:focus-visible,.dialog-close:focus-visible{outline:3px solid #299b68;outline-offset:2px}
+.booking-dialog textarea{resize:vertical}
+.booking-date{margin-top:14px}
+.slot-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:18px 0 9px}
+.booking-slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;min-height:42px}
+.slot-button{padding:10px 6px;border:1px solid #cbd7dc;border-radius:9px;background:#f7faf9;color:#172333;font:inherit;font-weight:700;cursor:pointer}
+.slot-button[aria-pressed=true]{border-color:#218657;background:#e4f7ed;color:#145b39}
+.booking-message{min-height:20px;margin:12px 0 0;color:#526779;font-size:14px}
+.booking-message[data-kind=error]{color:#a52c2c}
+.booking-message[data-kind=success]{color:#176c43}
+.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.secondary{background:#edf2f4;color:#263b4b}
+.booking-success{padding:24px 10px;text-align:center}
+.booking-success .success-mark{font-size:36px;color:#218657}
+.booking-success h3{margin:8px 0}
+[hidden]{display:none!important}
+@media(max-width:560px){.booking-dialog{padding:19px}.booking-fields{grid-template-columns:1fr}.booking-field.full{grid-column:auto}.booking-slots{grid-template-columns:repeat(3,minmax(0,1fr))}.dialog-actions{flex-direction:column-reverse}.dialog-actions .btn{width:100%}}
 </style></head><body>
 <header><a class="brand" href="/marketplace">Auto<span>Flow</span></a><div class="row"><a class="toplink" href="/">Кабинет автосервиса</a></div></header>
 <main class="wrap"><section class="hero"><span class="chip">САНКТ-ПЕТЕРБУРГ · ЛЕНИНГРАДСКАЯ ОБЛАСТЬ</span><h1>Найдите автосервис. Запишитесь без звонков.</h1><p>Сравнивайте услуги и цены, выбирайте удобный сервис и отправляйте заявку на запись онлайн.</p>
 <form id="search" class="search"><input name="q" placeholder="Услуга или название автосервиса"><select name="city"><option value="">Все города</option><option>Санкт-Петербург</option><option>Всеволожск</option><option>Гатчина</option><option>Выборг</option><option>Кудрово</option><option>Мурино</option></select><select name="category"><option value="">Все услуги</option><option>ТО</option><option>Диагностика</option><option>Ремонт двигателя</option><option>Шиномонтаж</option><option>Тормозная система</option><option>Электрика</option></select><button class="btn">Найти</button></form></section>
 <div class="section"><div><h2>Автосервисы и услуги</h2><div class="muted">Выбирайте подходящий вариант и отправляйте заявку</div></div><span id="count" class="muted"></span></div><div id="results" class="grid"><div class="empty">Загружаем каталог…</div></div></main>
+
+<dialog id="bookingDialog" class="booking-dialog" aria-labelledby="bookingTitle">
+  <div class="dialog-header">
+    <div><span class="chip">ОНЛАЙН-ЗАПИСЬ</span><h2 id="bookingTitle">Запись в автосервис</h2><p id="bookingSubtitle" class="muted"></p></div>
+    <button type="button" class="dialog-close" id="closeBooking" aria-label="Закрыть окно записи">×</button>
+  </div>
+  <form id="bookingForm">
+    <div id="bookingDetails">
+      <div class="booking-fields">
+        <div class="booking-field"><label for="bookingName">Ваше имя</label><input id="bookingName" name="customer_name" required minlength="2" maxlength="160" autocomplete="name"></div>
+        <div class="booking-field"><label for="bookingPhone">Телефон для связи</label><input id="bookingPhone" name="customer_phone" type="tel" required minlength="6" maxlength="32" autocomplete="tel" placeholder="+7 900 000-00-00"></div>
+        <div class="booking-field full"><label for="bookingEmail">Email (необязательно)</label><input id="bookingEmail" name="customer_email" type="email" maxlength="254" autocomplete="email"></div>
+        <div class="booking-field full"><label for="bookingComment">Комментарий (необязательно)</label><textarea id="bookingComment" name="comment" rows="2" maxlength="2000" placeholder="Например, удобное время для звонка или описание проблемы"></textarea></div>
+      </div>
+      <div class="booking-field booking-date"><label for="bookingDate">Дата записи</label><input id="bookingDate" name="day" type="date" required></div>
+      <div class="slot-heading"><span>Свободное время</span><span id="bookingHours" class="muted"></span></div>
+      <div id="bookingSlots" class="booking-slots" role="group" aria-label="Доступное время для записи" aria-live="polite">Выберите дату, чтобы увидеть свободное время.</div>
+    </div>
+    <div id="bookingSuccess" class="booking-success" hidden>
+      <div class="success-mark" aria-hidden="true">✓</div><h3>Заявка отправлена</h3><p id="bookingSuccessText" class="muted"></p>
+    </div>
+    <p id="bookingMessage" class="booking-message" role="status" aria-live="polite"></p>
+    <div class="dialog-actions">
+      <button type="button" id="cancelBooking" class="btn secondary">Отмена</button>
+      <button type="submit" id="submitBooking" class="btn" disabled>Отправить заявку</button>
+    </div>
+  </form>
+</dialog>
 <script>
 const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function load(){const f=new FormData($('#search'));const p=new URLSearchParams();for(const [k,v] of f)if(v.trim())p.set(k,v.trim());try{const r=await fetch('/api/marketplace/services?'+p);const data=await r.json();$('#count').textContent=data.length+' предложений';$('#results').innerHTML=data.length?data.map(x=>'<article class="card"><span class="chip">'+esc(x.category)+'</span><h3>'+esc(x.business)+'</h3><div class="muted">'+esc(x.city)+(x.district?' · '+esc(x.district):'')+' · '+esc(x.address)+'</div><h3 style="margin-top:16px">'+esc(x.service)+'</h3><div class="muted">'+esc(x.description||'Услуга автосервиса')+'</div><div class="price">'+(x.price_from_rub===null?'Цена по запросу':'от '+Number(x.price_from_rub).toLocaleString('ru-RU')+' ₽')+'</div><div class="muted">Ориентировочно '+x.duration_minutes+' минут · '+esc(x.phone)+'</div><button class="btn" data-service-id="'+x.service_id+'" data-service="'+esc(x.service)+'" data-business="'+esc(x.business)+'" onclick="book(this)">Записаться</button></article>').join(''):'<div class="empty" style="grid-column:1/-1">Пока нет опубликованных предложений. Попробуйте изменить фильтры или вернитесь позже.</div>'}catch(e){$('#results').innerHTML='<div class="empty">Не удалось загрузить каталог. Обновите страницу.</div>'}}
-async function book(button){const id=Number(button.dataset.serviceId),service=button.dataset.service,business=button.dataset.business;const name=prompt('Ваше имя для записи на «'+service+'» в '+business);if(!name)return;const phone=prompt('Номер телефона для связи с автосервисом');if(!phone)return;const day=prompt('Выберите дату (ГГГГ-ММ-ДД)');if(!day)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(day)){alert('Введите дату в формате ГГГГ-ММ-ДД');return}try{const offset=180;const availability=await fetch('/api/marketplace/availability?'+new URLSearchParams({service_id:id,day,utc_offset_minutes:offset}));const slotsData=await availability.json();if(!availability.ok)throw Error(slotsData.detail||'Не удалось проверить свободное время');if(!slotsData.slots.length){alert('На эту дату свободного времени нет. Выберите другой день.');return}const choices=slotsData.slots.map((slot,i)=>(i+1)+'. '+new Date(slot).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})).join('\n');const choice=Number(prompt('Свободное время ('+slotsData.working_hours.from+'–'+slotsData.working_hours.to+'):\n'+choices+'\n\nВведите номер подходящего времени'));if(!Number.isInteger(choice)||choice<1||choice>slotsData.slots.length)return;const starts_at=slotsData.slots[choice-1];const r=await fetch('/api/marketplace/bookings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service_id:id,customer_name:name,customer_phone:phone,starts_at})});const d=await r.json();if(!r.ok)throw Error(d.detail||'Не удалось создать запись');alert('Заявка №'+d.id+' отправлена! Автосервис должен подтвердить время.')}catch(e){alert(e.message)}}
+async function load(){const f=new FormData($('#search'));const p=new URLSearchParams();for(const [k,v] of f)if(v.trim())p.set(k,v.trim());try{const r=await fetch('/api/marketplace/services?'+p);const data=await r.json();$('#count').textContent=data.length+' предложений';$('#results').innerHTML=data.length?data.map(x=>'<article class="card"><span class="chip">'+esc(x.category)+'</span><h3>'+esc(x.business)+'</h3><div class="muted">'+esc(x.city)+(x.district?' · '+esc(x.district):'')+' · '+esc(x.address)+'</div><h3 style="margin-top:16px">'+esc(x.service)+'</h3><div class="muted">'+esc(x.description||'Услуга автосервиса')+'</div><div class="price">'+(x.price_from_rub===null?'Цена по запросу':'от '+Number(x.price_from_rub).toLocaleString('ru-RU')+' ₽')+'</div><div class="muted">Ориентировочно '+x.duration_minutes+' минут · '+esc(x.phone)+'</div><button class="btn" data-service-id="'+x.service_id+'" data-service="'+esc(x.service)+'" data-business="'+esc(x.business)+'" type="button">Записаться</button></article>').join(''):'<div class="empty" style="grid-column:1/-1">Пока нет опубликованных предложений. Попробуйте изменить фильтры или вернитесь позже.</div>'}catch(e){$('#results').innerHTML='<div class="empty">Не удалось загрузить каталог. Обновите страницу.</div>'}}
+const bookingDialog=$('#bookingDialog');
+const bookingForm=$('#bookingForm');
+const bookingDate=$('#bookingDate');
+const bookingSlots=$('#bookingSlots');
+const bookingMessage=$('#bookingMessage');
+const bookingHours=$('#bookingHours');
+const submitBooking=$('#submitBooking');
+const bookingDetails=$('#bookingDetails');
+const bookingSuccess=$('#bookingSuccess');
+const cancelBooking=$('#cancelBooking');
+let activeServiceId=null;
+let selectedStartAt=null;
+let availabilityRequest=0;
+function moscowDateValue(){return new Date(Date.now()+180*60*1000).toISOString().slice(0,10)}
+function setBookingMessage(message,kind='info'){bookingMessage.textContent=message;bookingMessage.dataset.kind=kind}
+function formatBookingTime(value){return new Date(value).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow',hour:'2-digit',minute:'2-digit'})}
+async function loadBookingSlots(){
+ const requestId=++availabilityRequest;
+ selectedStartAt=null;
+ submitBooking.disabled=true;
+ bookingHours.textContent='';
+ bookingSlots.replaceChildren();
+ const day=bookingDate.value;
+ if(!day){bookingSlots.textContent='Выберите дату, чтобы увидеть свободное время.';return}
+ bookingSlots.textContent='Проверяем свободное время…';
+ try{
+  const query=new URLSearchParams({service_id:String(activeServiceId),day,utc_offset_minutes:'180'});
+  const response=await fetch('/api/marketplace/availability?'+query);
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw Error(data.detail||'Не удалось проверить свободное время');
+  if(requestId!==availabilityRequest)return;
+  const hours=data.working_hours||{};
+  bookingHours.textContent=hours.is_closed?'Выходной':(hours.from&&hours.to?'Рабочее время '+hours.from+'–'+hours.to:'');
+  if(!Array.isArray(data.slots)||!data.slots.length){
+   bookingSlots.textContent=hours.is_closed?'В этот день автосервис не работает.':'На эту дату свободного времени нет. Выберите другой день.';
+   return;
+  }
+  bookingSlots.replaceChildren();
+  for(const slot of data.slots){
+   const option=document.createElement('button');
+   option.type='button';
+   option.className='slot-button';
+   option.textContent=formatBookingTime(slot);
+   option.setAttribute('aria-pressed','false');
+   option.addEventListener('click',()=>{
+    selectedStartAt=slot;
+    bookingSlots.querySelectorAll('.slot-button').forEach(item=>item.setAttribute('aria-pressed',String(item===option)));
+    submitBooking.disabled=false;
+    setBookingMessage('Выбрано время '+formatBookingTime(slot)+'.','info');
+   });
+   bookingSlots.append(option);
+  }
+ }catch(error){
+  if(requestId!==availabilityRequest)return;
+  bookingSlots.textContent='Не удалось загрузить свободное время.';
+  setBookingMessage(error.message,'error');
+ }
+}
+function openBooking(button){
+ activeServiceId=Number(button.dataset.serviceId);
+ if(!Number.isSafeInteger(activeServiceId)||activeServiceId<1)return;
+ bookingForm.reset();
+ bookingDetails.hidden=false;
+ bookingSuccess.hidden=true;
+ submitBooking.hidden=false;
+ submitBooking.textContent='Отправить заявку';
+ cancelBooking.textContent='Отмена';
+ selectedStartAt=null;
+ bookingDate.min=moscowDateValue();
+ bookingDate.value=bookingDate.min;
+ $('#bookingTitle').textContent='Запись на услугу «'+button.dataset.service+'»';
+ $('#bookingSubtitle').textContent=button.dataset.business;
+ bookingHours.textContent='';
+ bookingSlots.textContent='Проверяем свободное время…';
+ setBookingMessage('');
+ submitBooking.disabled=true;
+ bookingDialog.showModal();
+ $('#bookingName').focus();
+ loadBookingSlots();
+}
+$('#results').addEventListener('click',event=>{
+ const button=event.target.closest('[data-service-id]');
+ if(button)openBooking(button);
+});
+bookingDate.addEventListener('change',()=>{setBookingMessage('');loadBookingSlots()});
+$('#closeBooking').addEventListener('click',()=>bookingDialog.close());
+cancelBooking.addEventListener('click',()=>bookingDialog.close());
+bookingDialog.addEventListener('click',event=>{if(event.target===bookingDialog)bookingDialog.close()});
+bookingDialog.addEventListener('close',()=>{
+ availabilityRequest++;
+ bookingForm.reset();
+ bookingDetails.hidden=false;
+ bookingSuccess.hidden=true;
+ submitBooking.hidden=false;
+ submitBooking.textContent='Отправить заявку';
+ cancelBooking.textContent='Отмена';
+ selectedStartAt=null;
+ activeServiceId=null;
+ setBookingMessage('');
+});
+bookingForm.addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(!bookingForm.reportValidity())return;
+ if(!selectedStartAt){setBookingMessage('Сначала выберите свободное время.','error');return}
+ const payload={
+  service_id:activeServiceId,
+  customer_name:bookingForm.elements.customer_name.value.trim(),
+  customer_phone:bookingForm.elements.customer_phone.value.trim(),
+  starts_at:selectedStartAt
+ };
+ const email=bookingForm.elements.customer_email.value.trim();
+ const comment=bookingForm.elements.comment.value.trim();
+ if(email)payload.customer_email=email;
+ if(comment)payload.comment=comment;
+ submitBooking.disabled=true;
+ setBookingMessage('Отправляем заявку…');
+ try{
+  const response=await fetch('/api/marketplace/bookings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+   if(response.status===409){
+    setBookingMessage('Это время только что заняли. Обновляем список свободных интервалов…','error');
+    await loadBookingSlots();
+    setBookingMessage('Выберите другое доступное время и отправьте заявку ещё раз.','error');
+    return;
+   }
+   throw Error(data.detail||'Не удалось отправить заявку');
+  }
+  bookingDetails.hidden=true;
+  bookingSuccess.hidden=false;
+  $('#bookingSuccessText').textContent='Заявка №'+data.id+' отправлена в '+$('#bookingSubtitle').textContent+'. Автосервис должен подтвердить время.';
+  bookingSlots.replaceChildren();
+  bookingHours.textContent='';
+  bookingMessage.textContent='';
+  submitBooking.hidden=true;
+  cancelBooking.textContent='Готово';
+ }catch(error){
+  setBookingMessage(error.message,'error');
+  submitBooking.disabled=!selectedStartAt;
+ }
+});
 $('#search').addEventListener('submit',e=>{e.preventDefault();load()});load();
 </script></body></html>
 """
