@@ -7,7 +7,7 @@ MARKETPLACE = r"""
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AutoFlow — найти автосервис</title>
 <style>
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172333;background:#f4f7f8}*{box-sizing:border-box}body{margin:0}header{background:#101d2b;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center}.brand{font-size:24px;font-weight:850;letter-spacing:-1px}.brand span{color:#6ed49d}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:auto;padding:32px 20px}.hero{padding:42px;border-radius:24px;background:linear-gradient(120deg,#12283a,#234e50);color:white}.hero h1{font-size:clamp(30px,5vw,52px);line-height:1.04;max-width:720px;margin:0 0 12px}.hero p{color:#c5d6dc;max-width:600px}.search{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;margin-top:25px}.search input,.search select{padding:14px;border:1px solid #d4dde3;border-radius:10px;background:white;font:inherit;min-width:0}.btn{border:0;border-radius:10px;padding:13px 18px;background:#71d5a0;color:#10251b;font-weight:800;cursor:pointer}.btn.dark{background:#172c3b;color:#fff}.section{margin:34px 0 16px;display:flex;justify-content:space-between;align-items:end;gap:12px}.section h2{margin:0;font-size:25px}.muted{color:#68798a}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:white;border:1px solid #e0e7ea;border-radius:16px;padding:20px;box-shadow:0 8px 24px #162d3b0a}.card h3{margin:0 0 6px}.chip{display:inline-block;background:#e8f7ef;color:#20764a;border-radius:20px;padding:5px 9px;font-size:12px;font-weight:700}.price{font-size:22px;font-weight:800;margin:12px 0}.card .btn{width:100%;margin-top:12px}.empty{padding:35px;text-align:center;color:#68798a;background:white;border-radius:16px}.toplink{color:#c9d7df;font-size:14px}@media(max-width:850px){.search{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.hero{padding:26px}.search,.grid{grid-template-columns:1fr}.wrap{padding:22px 14px}.section{align-items:start;flex-direction:column}}
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172333;background:#f4f7f8}*{box-sizing:border-box}body{margin:0}header{background:#101d2b;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center}.brand{font-size:24px;font-weight:850;letter-spacing:-1px}.brand span{color:#6ed49d}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:auto;padding:32px 20px}.hero{padding:42px;border-radius:24px;background:linear-gradient(120deg,#12283a,#234e50);color:white}.hero h1{font-size:clamp(30px,5vw,52px);line-height:1.04;max-width:720px;margin:0 0 12px}.hero p{color:#c5d6dc;max-width:600px}.search{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;margin-top:25px}.search input,.search select{padding:14px;border:1px solid #d4dde3;border-radius:10px;background:white;font:inherit;min-width:0}.btn{border:0;border-radius:10px;padding:13px 18px;background:#71d5a0;color:#10251b;font-weight:800;cursor:pointer}.btn.dark{background:#172c3b;color:#fff}.section{margin:34px 0 16px;display:flex;justify-content:space-between;align-items:end;gap:12px}.section h2{margin:0;font-size:25px}.muted{color:#68798a}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:white;border:1px solid #e0e7ea;border-radius:16px;padding:20px;box-shadow:0 8px 24px #162d3b0a}.card h3{margin:0 0 6px}.chip{display:inline-block;background:#e8f7ef;color:#20764a;border-radius:20px;padding:5px 9px;font-size:12px;font-weight:700}.price{font-size:22px;font-weight:800;margin:12px 0}.card .btn{width:100%;margin-top:12px}.empty{padding:35px;text-align:center;color:#68798a;background:white;border-radius:16px}.catalog-footer{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0}.catalog-footer .btn{min-width:190px}.toplink{color:#c9d7df;font-size:14px}@media(max-width:850px){.search{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.hero{padding:26px}.search,.grid{grid-template-columns:1fr}.wrap{padding:22px 14px}.section{align-items:start;flex-direction:column}}
 .booking-dialog{width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;border:1px solid #dce5e8;border-radius:20px;padding:24px;color:#172333;box-shadow:0 24px 80px #07152240}
 .booking-dialog::backdrop{background:#071522a8;backdrop-filter:blur(3px)}
 .dialog-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
@@ -41,7 +41,7 @@ MARKETPLACE = r"""
 <header><a class="brand" href="/marketplace">Auto<span>Flow</span></a><div class="row"><a class="toplink" href="/">Кабинет автосервиса</a></div></header>
 <main class="wrap"><section class="hero"><span class="chip">САНКТ-ПЕТЕРБУРГ · ЛЕНИНГРАДСКАЯ ОБЛАСТЬ</span><h1>Найдите автосервис. Запишитесь без звонков.</h1><p>Сравнивайте услуги и цены, выбирайте удобный сервис и отправляйте заявку на запись онлайн.</p>
 <form id="search" class="search"><input name="q" placeholder="Услуга или название автосервиса"><select name="city"><option value="">Все города</option><option>Санкт-Петербург</option><option>Всеволожск</option><option>Гатчина</option><option>Выборг</option><option>Кудрово</option><option>Мурино</option></select><select name="category"><option value="">Все услуги</option><option>ТО</option><option>Диагностика</option><option>Ремонт двигателя</option><option>Шиномонтаж</option><option>Тормозная система</option><option>Электрика</option></select><button class="btn">Найти</button></form></section>
-<div class="section"><div><h2>Автосервисы и услуги</h2><div class="muted">Выбирайте подходящий вариант и отправляйте заявку</div></div><span id="count" class="muted"></span></div><div id="results" class="grid"><div class="empty">Загружаем каталог…</div></div></main>
+<div class="section"><div><h2>Автосервисы и услуги</h2><div class="muted">Выбирайте подходящий вариант и отправляйте заявку</div></div><span id="count" class="muted"></span></div><div id="results" class="grid"><div class="empty">Загружаем каталог…</div></div><div class="catalog-footer"><button id="loadMore" class="btn dark" type="button" hidden>Показать ещё</button><span id="catalogMessage" class="muted" role="status" aria-live="polite"></span></div></main>
 
 <dialog id="bookingDialog" class="booking-dialog" aria-labelledby="bookingTitle">
   <div class="dialog-header">
@@ -72,7 +72,60 @@ MARKETPLACE = r"""
 </dialog>
 <script>
 const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function load(){const f=new FormData($('#search'));const p=new URLSearchParams();for(const [k,v] of f)if(v.trim())p.set(k,v.trim());try{const r=await fetch('/api/marketplace/services?'+p);const data=await r.json();$('#count').textContent=data.length+' предложений';$('#results').innerHTML=data.length?data.map(x=>'<article class="card"><span class="chip">'+esc(x.category)+'</span><h3>'+esc(x.business)+'</h3><div class="muted">'+esc(x.city)+(x.district?' · '+esc(x.district):'')+' · '+esc(x.address)+'</div><h3 style="margin-top:16px">'+esc(x.service)+'</h3><div class="muted">'+esc(x.description||'Услуга автосервиса')+'</div><div class="price">'+(x.price_from_rub===null?'Цена по запросу':'от '+Number(x.price_from_rub).toLocaleString('ru-RU')+' ₽')+'</div><div class="muted">Ориентировочно '+x.duration_minutes+' минут · '+esc(x.phone)+'</div><button class="btn" data-service-id="'+x.service_id+'" data-service="'+esc(x.service)+'" data-business="'+esc(x.business)+'" type="button">Записаться</button></article>').join(''):'<div class="empty" style="grid-column:1/-1">Пока нет опубликованных предложений. Попробуйте изменить фильтры или вернитесь позже.</div>'}catch(e){$('#results').innerHTML='<div class="empty">Не удалось загрузить каталог. Обновите страницу.</div>'}}
+const PAGE_SIZE=24;
+let catalogOffset=0;
+let catalogLoading=false;
+function serviceCard(x){
+ return '<article class="card"><span class="chip">'+esc(x.category)+'</span><h3>'+esc(x.business)+'</h3><div class="muted">'+esc(x.city)+(x.district?' · '+esc(x.district):'')+' · '+esc(x.address)+'</div><h3 style="margin-top:16px">'+esc(x.service)+'</h3><div class="muted">'+esc(x.description||'Услуга автосервиса')+'</div><div class="price">'+(x.price_from_rub===null?'Цена по запросу':'от '+Number(x.price_from_rub).toLocaleString('ru-RU')+' ₽')+'</div><div class="muted">Ориентировочно '+x.duration_minutes+' минут · '+esc(x.phone)+'</div><button class="btn" data-service-id="'+x.service_id+'" data-service="'+esc(x.service)+'" data-business="'+esc(x.business)+'" type="button">Записаться</button></article>';
+}
+async function load(append=false){
+ if(catalogLoading)return;
+ catalogLoading=true;
+ const button=$('#loadMore');
+ const message=$('#catalogMessage');
+ const offset=append?catalogOffset:0;
+ const params=new URLSearchParams();
+ for(const [key,value] of new FormData($('#search'))){
+  const normalized=value.trim();
+  if(normalized)params.set(key,normalized);
+ }
+ params.set('limit',String(PAGE_SIZE+1));
+ params.set('offset',String(offset));
+ button.disabled=true;
+ button.hidden=true;
+ message.textContent=append?'Загружаем следующие предложения…':'';
+ if(!append){
+  catalogOffset=0;
+  $('#count').textContent='';
+  $('#results').innerHTML='<div class="empty">Загружаем каталог…</div>';
+ }
+ try{
+  const response=await fetch('/api/marketplace/services?'+params);
+  const data=await response.json().catch(()=>[]);
+  if(!response.ok)throw Error(data.detail||'Не удалось загрузить каталог');
+  if(!Array.isArray(data))throw Error('Сервер вернул некорректный список предложений');
+  const page=data.slice(0,PAGE_SIZE);
+  const markup=page.map(serviceCard).join('');
+  if(append){
+   if(markup)$('#results').insertAdjacentHTML('beforeend',markup);
+  }else{
+   $('#results').innerHTML=markup||'<div class="empty" style="grid-column:1/-1">Пока нет опубликованных предложений. Попробуйте изменить фильтры или вернитесь позже.</div>';
+  }
+  catalogOffset+=page.length;
+  const hasMore=data.length>PAGE_SIZE;
+  button.hidden=!hasMore;
+  $('#count').textContent='Загружено: '+catalogOffset;
+  message.textContent=hasMore?'Можно загрузить следующие предложения.':(catalogOffset?'Все предложения загружены.':'Пока нет опубликованных предложений.');
+ }catch(error){
+  if(!append)$('#results').innerHTML='<div class="empty">Не удалось загрузить каталог. Обновите страницу.</div>';
+  message.textContent=error.message||'Не удалось загрузить каталог.';
+  button.hidden=catalogOffset===0;
+ }finally{
+  catalogLoading=false;
+  button.disabled=false;
+ }
+}
+$('#loadMore').addEventListener('click',()=>load(true));
 const bookingDialog=$('#bookingDialog');
 const bookingForm=$('#bookingForm');
 const bookingDate=$('#bookingDate');
@@ -214,7 +267,7 @@ bookingForm.addEventListener('submit',async event=>{
   submitBooking.disabled=!selectedStartAt;
  }
 });
-$('#search').addEventListener('submit',e=>{e.preventDefault();load()});load();
+$('#search').addEventListener('submit',e=>{e.preventDefault();load(false)});load(false);
 </script></body></html>
 """
 

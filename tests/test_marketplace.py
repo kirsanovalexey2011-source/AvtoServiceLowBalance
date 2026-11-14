@@ -77,6 +77,36 @@ def test_partner_profile_service_public_listing_and_booking(client: TestClient) 
     assert len(platform_bookings) == 1
     assert client.get("/api/platform/clients").status_code == 200
 
+def test_public_services_pagination_is_stable_and_validated(client: TestClient) -> None:
+    register(client)
+    profile = client.put("/api/partner/profile", json={
+        "public_name": "Сервис Север", "city": "Санкт-Петербург",
+        "address": "Санкт-Петербург, Невский проспект, 10",
+        "phone": "+79990000000",
+    })
+    assert profile.status_code == 200
+    for title in ("Услуга А", "Услуга Б", "Услуга В"):
+        created = client.post("/api/partner/services", json={
+            "title": title, "category": "Диагностика", "duration_minutes": 60,
+        })
+        assert created.status_code == 201
+    assert client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+    first_page = client.get("/api/marketplace/services", params={"limit": 2, "offset": 0})
+    second_page = client.get("/api/marketplace/services", params={"limit": 2, "offset": 2})
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    first_ids = [item["service_id"] for item in first_page.json()]
+    second_ids = [item["service_id"] for item in second_page.json()]
+    assert len(first_ids) == 2
+    assert len(second_ids) == 1
+    assert set(first_ids).isdisjoint(second_ids)
+    assert first_ids + second_ids == sorted(first_ids + second_ids)
+
+    assert client.get("/api/marketplace/services", params={"limit": 0}).status_code == 422
+    assert client.get("/api/marketplace/services", params={"offset": -1}).status_code == 422
+
+
 def test_platform_endpoints_are_restricted(client: TestClient) -> None:
     register(client, "ordinary@example.com")
     assert client.get("/api/platform/overview").status_code == 403
@@ -398,4 +428,7 @@ def test_marketplace_booking_dialog_is_accessible_and_uses_native_date_selection
     assert 'id="bookingSuccess"' in response.text
     assert "prompt(" not in response.text
     assert "alert(" not in response.text
+    assert 'id="loadMore"' in response.text
+    assert "PAGE_SIZE=24" in response.text
+    assert "catalogOffset" in response.text
 

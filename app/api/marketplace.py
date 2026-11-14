@@ -168,21 +168,34 @@ def profile_payload(profile: BusinessProfile, services_count: int = 0) -> dict:
     }
 
 @router.get("/api/marketplace/services")
-def public_services(city: str | None = None, district: str | None = None, category: str | None = None,
-                    q: str | None = None, db: Session = Depends(get_db)):
+def public_services(
+    city: str | None = Query(default=None, max_length=100),
+    district: str | None = Query(default=None, max_length=100),
+    category: str | None = Query(default=None, max_length=80),
+    q: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=200, ge=1, le=200),
+    offset: int = Query(default=0, ge=0, le=100000),
+    db: Session = Depends(get_db),
+):
+    """List published services in a stable, bounded page."""
     stmt = (select(ServiceOffering, BusinessProfile)
             .join(BusinessProfile, BusinessProfile.organization_id == ServiceOffering.organization_id)
             .where(ServiceOffering.is_active.is_(True), BusinessProfile.is_published.is_(True)))
-    if city:
-        stmt = stmt.where(BusinessProfile.city == city)
-    if district:
-        stmt = stmt.where(BusinessProfile.district == district)
-    if category:
-        stmt = stmt.where(ServiceOffering.category == category)
-    if q:
-        term = f"%{q.strip()}%"
+    if city and city.strip():
+        stmt = stmt.where(BusinessProfile.city == city.strip())
+    if district and district.strip():
+        stmt = stmt.where(BusinessProfile.district == district.strip())
+    if category and category.strip():
+        stmt = stmt.where(ServiceOffering.category == category.strip())
+    normalized_query = (q or "").strip()
+    if normalized_query:
+        term = f"%{normalized_query}%"
         stmt = stmt.where((ServiceOffering.title.ilike(term)) | (BusinessProfile.public_name.ilike(term)))
-    rows = db.execute(stmt.order_by(BusinessProfile.public_name, ServiceOffering.title).limit(200)).all()
+    rows = db.execute(
+        stmt.order_by(BusinessProfile.public_name, ServiceOffering.title, ServiceOffering.id)
+        .offset(offset)
+        .limit(limit)
+    ).all()
     return [{
         "service_id": service.id, "organization_id": service.organization_id,
         "service": service.title, "category": service.category,
