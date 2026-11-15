@@ -81,16 +81,29 @@ def test_public_services_pagination_is_stable_and_validated(client: TestClient) 
     register(client)
     profile = client.put("/api/partner/profile", json={
         "public_name": "Сервис Север", "city": "Санкт-Петербург",
+        "district": "Калининский",
         "address": "Санкт-Петербург, Невский проспект, 10",
         "phone": "+79990000000",
     })
     assert profile.status_code == 200
     for title in ("Услуга А", "Услуга Б", "Услуга В"):
         created = client.post("/api/partner/services", json={
-            "title": title, "category": "Диагностика", "duration_minutes": 60,
+            "title": title,
+            "category": "Диагностика",
+            "description": "Комплексная диагностика двигателя" if title == "Услуга Б" else None,
+            "duration_minutes": 60,
         })
         assert created.status_code == 201
     assert client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+    for query in ("Сервис Север", "Санкт-Петербург", "Калининский", "Невский проспект", "Диагностика"):
+        result = client.get("/api/marketplace/services", params={"q": query})
+        assert result.status_code == 200
+        assert len(result.json()) == 3, query
+
+    description_search = client.get("/api/marketplace/services", params={"q": "двигателя"})
+    assert description_search.status_code == 200
+    assert [item["service"] for item in description_search.json()] == ["Услуга Б"]
 
     first_page = client.get("/api/marketplace/services", params={"limit": 2, "offset": 0})
     second_page = client.get("/api/marketplace/services", params={"limit": 2, "offset": 2})

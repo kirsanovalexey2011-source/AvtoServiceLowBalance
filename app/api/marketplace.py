@@ -190,7 +190,15 @@ def public_services(
     normalized_query = (q or "").strip()
     if normalized_query:
         term = f"%{normalized_query}%"
-        stmt = stmt.where((ServiceOffering.title.ilike(term)) | (BusinessProfile.public_name.ilike(term)))
+        stmt = stmt.where(
+            (ServiceOffering.title.ilike(term))
+            | (ServiceOffering.category.ilike(term))
+            | (ServiceOffering.description.ilike(term))
+            | (BusinessProfile.public_name.ilike(term))
+            | (BusinessProfile.city.ilike(term))
+            | (BusinessProfile.district.ilike(term))
+            | (BusinessProfile.address.ilike(term))
+        )
     rows = db.execute(
         stmt.order_by(BusinessProfile.public_name, ServiceOffering.title, ServiceOffering.id)
         .offset(offset)
