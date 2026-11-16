@@ -445,3 +445,70 @@ def test_marketplace_booking_dialog_is_accessible_and_uses_native_date_selection
     assert "PAGE_SIZE=24" in response.text
     assert "catalogOffset" in response.text
 
+def test_partner_booking_status_transitions_are_validated_and_idempotent(client: TestClient) -> None:
+    register(client)
+    profile = client.put("/api/partner/profile", json={
+        "public_name": "Сервис Север",
+        "city": "Санкт-Петербург",
+        "address": "Санкт-Петербург, Невский проспект, 10",
+        "phone": "+79990000000",
+    })
+    assert profile.status_code == 200
+    service = client.post("/api/partner/services", json={
+        "title": "Диагностика",
+        "category": "Диагностика",
+        "duration_minutes": 60,
+    })
+    assert service.status_code == 201
+    assert client.patch("/api/platform/businesses/1/publish").status_code == 200
+
+    booking_day = (datetime.now(timezone.utc) + timedelta(days=4)).date()
+    moscow_tz = timezone(timedelta(hours=3))
+
+    def create_booking(hour: int, phone_suffix: str) -> int:
+        starts_at = datetime.combine(
+            booking_day, time(hour=hour), tzinfo=moscow_tz
+        )
+        response = client.post("/api/marketplace/bookings", json={
+            "service_id": service.json()["id"],
+            "customer_name": "Клиент AutoFlow",
+            "customer_phone": f"+79990000{phone_suffix}",
+            "starts_at": starts_at.isoformat(),
+        })
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    first_id = create_booking(10, "0011")
+    status_url = f"/api/partner/bookings/{first_id}"
+
+    # A pending booking cannot skip directly to completed.
+    assert client.patch(status_url, json={"status": "completed"}).status_code == 409
+
+    confirmed = client.patch(status_url, json={"status": "confirmed"})
+    assert confirmed.status_code == 200
+    assert confirmed.json()["status"] == "confirmed"
+
+    # Retrying the same transition is safe and returns the current state.
+    repeated_confirmation = client.patch(status_url, json={"status": "confirmed"})
+    assert repeated_confirmation.status_code == 200
+    assert repeated_confirmation.json()["status"] == "confirmed"
+
+    completed = client.patch(status_url, json={"status": "completed"})
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "completed"
+
+    # A completed booking is terminal.
+    assert client.patch(status_url, json={"status": "cancelled"}).status_code == 409
+
+    second_id = create_booking(12, "0012")
+    second_url = f"/api/partner/bookings/{second_id}"
+    cancelled = client.patch(second_url, json={"status": "cancelled"})
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+
+    # A cancelled booking cannot be reopened by a late or repeated request.
+    assert client.patch(second_url, json={"status": "confirmed"}).status_code == 409
+    repeated_cancellation = client.patch(second_url, json={"status": "cancelled"})
+    assert repeated_cancellation.status_code == 200
+    assert repeated_cancellation.json()["status"] == "cancelled"
+

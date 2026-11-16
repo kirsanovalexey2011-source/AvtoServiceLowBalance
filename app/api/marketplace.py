@@ -487,6 +487,25 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
     if not booking:
         raise HTTPException(status_code=404, detail="Запись не найдена")
 
+    current_status = booking.status
+    if payload.status == current_status:
+        # Make retries safe: repeating the same transition must not change state.
+        db.commit()
+        return {"id": booking.id, "status": current_status}
+
+    allowed_transitions = {
+        "pending": {"confirmed", "cancelled"},
+        "confirmed": {"cancelled", "completed"},
+        "cancelled": set(),
+        "completed": set(),
+    }
+    if payload.status not in allowed_transitions.get(current_status, set()):
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Нельзя изменить статус записи с «{current_status}» на «{payload.status}»",
+        )
+
     if payload.status == "confirmed":
         conflict = db.scalar(select(Appointment.id).where(
             Appointment.organization_id == organization_id,
@@ -496,6 +515,7 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
             Appointment.ends_at > booking.starts_at,
         ).limit(1))
         if conflict:
+            db.rollback()
             raise HTTPException(status_code=409, detail="На это время уже есть другая активная запись")
     booking.status = payload.status
     db.commit()
