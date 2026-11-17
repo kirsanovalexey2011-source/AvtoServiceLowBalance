@@ -2,6 +2,6 @@ from app.models.entities import Client, ConsentRecord, DeferredService, EmailVer
 
 __all__ = ["Organization", "User", "Client", "Vehicle", "ServiceVisit", "ReminderRule", "Reminder", "ConsentRecord", "DeferredService", "EmailVerification"]
 
-from app.models.marketplace import Appointment, BookingLock, BusinessProfile, BusinessWorkingHours, ServiceOffering
+from app.models.marketplace import Appointment, AppointmentStatusHistory, BookingLock, BusinessProfile, BusinessWorkingHours, ServiceOffering
 
-__all__ += ["BusinessProfile", "ServiceOffering", "Appointment", "BookingLock", "BusinessWorkingHours"]
+__all__ += ["BusinessProfile", "ServiceOffering", "Appointment", "AppointmentStatusHistory", "BookingLock", "BusinessWorkingHours"]

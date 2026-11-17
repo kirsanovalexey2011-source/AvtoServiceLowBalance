@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_db
 from app.api.auth import limiter
 from app.core.config import settings
-from app.models import Appointment, BookingLock, BusinessProfile, BusinessWorkingHours, Client, Organization, ServiceOffering, User
+from app.models import Appointment, AppointmentStatusHistory, BookingLock, BusinessProfile, BusinessWorkingHours, Client, Organization, ServiceOffering, User
 
 router = APIRouter(tags=["marketplace"])
 
@@ -360,6 +360,14 @@ def create_public_booking(request: Request, payload: BookingIn, db: Session = De
         starts_at=start, ends_at=end, comment=payload.comment, status="pending",
     )
     db.add(booking)
+    db.flush()
+    db.add(AppointmentStatusHistory(
+        appointment_id=booking.id,
+        organization_id=organization_id,
+        previous_status=None,
+        new_status="pending",
+        actor_type="customer",
+    ))
     db.commit()
     db.refresh(booking)
     return {"id": booking.id, "status": booking.status, "message": "Заявка отправлена автосервису. Дождитесь подтверждения."}
@@ -471,6 +479,37 @@ def list_partner_bookings(db: Session = Depends(get_db), user: User = Depends(ge
              "starts_at": a.starts_at.isoformat(), "status": a.status, "comment": a.comment}
             for a, title in rows]
 
+@router.get("/api/partner/bookings/{booking_id}/history")
+def partner_booking_history(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return the audit trail only to users belonging to the booking's organization."""
+    booking_exists = db.scalar(select(Appointment.id).where(
+        Appointment.id == booking_id,
+        Appointment.organization_id == user.organization_id,
+    ))
+    if booking_exists is None:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+
+    rows = db.scalars(select(AppointmentStatusHistory).where(
+        AppointmentStatusHistory.appointment_id == booking_id,
+        AppointmentStatusHistory.organization_id == user.organization_id,
+    ).order_by(
+        AppointmentStatusHistory.changed_at,
+        AppointmentStatusHistory.id,
+    )).all()
+    return [{
+        "id": item.id,
+        "previous_status": item.previous_status,
+        "new_status": item.new_status,
+        "actor_type": item.actor_type,
+        "actor_user_id": item.actor_user_id,
+        "changed_at": item.changed_at.isoformat(),
+    } for item in rows]
+
+
 @router.patch("/api/partner/bookings/{booking_id}")
 def update_partner_booking(booking_id: int, payload: BookingStatusIn,
                            db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -518,6 +557,14 @@ def update_partner_booking(booking_id: int, payload: BookingStatusIn,
             db.rollback()
             raise HTTPException(status_code=409, detail="На это время уже есть другая активная запись")
     booking.status = payload.status
+    db.add(AppointmentStatusHistory(
+        appointment_id=booking.id,
+        organization_id=organization_id,
+        previous_status=current_status,
+        new_status=payload.status,
+        actor_type="partner",
+        actor_user_id=user.id,
+    ))
     db.commit()
     return {"id": booking.id, "status": booking.status}
 

@@ -480,6 +480,16 @@ def test_partner_booking_status_transitions_are_validated_and_idempotent(client:
 
     first_id = create_booking(10, "0011")
     status_url = f"/api/partner/bookings/{first_id}"
+    history_url = f"/api/partner/bookings/{first_id}/history"
+
+    initial_history_response = client.get(history_url)
+    assert initial_history_response.status_code == 200
+    initial_history = initial_history_response.json()
+    assert len(initial_history) == 1
+    assert initial_history[0]["previous_status"] is None
+    assert initial_history[0]["new_status"] == "pending"
+    assert initial_history[0]["actor_type"] == "customer"
+    assert initial_history[0]["actor_user_id"] is None
 
     # A pending booking cannot skip directly to completed.
     assert client.patch(status_url, json={"status": "completed"}).status_code == 409
@@ -492,10 +502,20 @@ def test_partner_booking_status_transitions_are_validated_and_idempotent(client:
     repeated_confirmation = client.patch(status_url, json={"status": "confirmed"})
     assert repeated_confirmation.status_code == 200
     assert repeated_confirmation.json()["status"] == "confirmed"
+    confirmation_history = client.get(history_url).json()
+    assert len(confirmation_history) == 2
+    assert confirmation_history[-1]["previous_status"] == "pending"
+    assert confirmation_history[-1]["new_status"] == "confirmed"
+    assert confirmation_history[-1]["actor_type"] == "partner"
+    assert confirmation_history[-1]["actor_user_id"] is not None
 
     completed = client.patch(status_url, json={"status": "completed"})
     assert completed.status_code == 200
     assert completed.json()["status"] == "completed"
+    completed_history = client.get(history_url).json()
+    assert len(completed_history) == 3
+    assert completed_history[-1]["previous_status"] == "confirmed"
+    assert completed_history[-1]["new_status"] == "completed"
 
     # A completed booking is terminal.
     assert client.patch(status_url, json={"status": "cancelled"}).status_code == 409
@@ -511,4 +531,12 @@ def test_partner_booking_status_transitions_are_validated_and_idempotent(client:
     repeated_cancellation = client.patch(second_url, json={"status": "cancelled"})
     assert repeated_cancellation.status_code == 200
     assert repeated_cancellation.json()["status"] == "cancelled"
+    cancellation_history = client.get(f"{second_url}/history").json()
+    assert len(cancellation_history) == 2
+    assert cancellation_history[-1]["previous_status"] == "pending"
+    assert cancellation_history[-1]["new_status"] == "cancelled"
+
+    # A different partner must not be able to inspect another organization's history.
+    register(client, email="another-partner@example.com")
+    assert client.get(history_url).status_code == 404
 

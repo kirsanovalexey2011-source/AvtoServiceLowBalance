@@ -52,6 +52,61 @@ class Appointment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AppointmentStatusHistory(Base):
+    """Append-only audit events for appointment status changes."""
+
+    __tablename__ = "appointment_status_history"
+    __table_args__ = (
+        Index(
+            "ix_appointment_status_history_appointment_time",
+            "appointment_id",
+            "changed_at",
+            "id",
+        ),
+        Index(
+            "ix_appointment_status_history_org_time",
+            "organization_id",
+            "changed_at",
+        ),
+        CheckConstraint(
+            "previous_status IS NULL OR previous_status IN "
+            "('pending', 'confirmed', 'cancelled', 'completed')",
+            name="ck_appointment_status_history_previous_status",
+        ),
+        CheckConstraint(
+            "new_status IN ('pending', 'confirmed', 'cancelled', 'completed')",
+            name="ck_appointment_status_history_new_status",
+        ),
+        CheckConstraint(
+            "actor_type IN ('customer', 'partner', 'system')",
+            name="ck_appointment_status_history_actor_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appointment_id: Mapped[int] = mapped_column(
+        ForeignKey("appointments.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    organization_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    previous_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class BusinessWorkingHours(Base):
     __tablename__ = "business_working_hours"
     __table_args__ = (
