@@ -540,3 +540,13 @@ def test_partner_booking_status_transitions_are_validated_and_idempotent(client:
     register(client, email="another-partner@example.com")
     assert client.get(history_url).status_code == 404
 
+
+def test_partner_portal_exposes_booking_history_controls(client: TestClient) -> None:
+    response = client.get("/partner")
+    assert response.status_code == 200
+    assert 'data-history-id="' in response.text
+    assert 'aria-expanded="false"' in response.text
+    assert 'aria-controls="booking-history-' in response.text
+    assert "loadBookingHistory" in response.text
+    assert "/api/partner/bookings/" in response.text
+    assert "Ожидает подтверждения" in response.text
