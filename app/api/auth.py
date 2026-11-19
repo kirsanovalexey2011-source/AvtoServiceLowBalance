@@ -8,7 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -58,7 +58,22 @@ def _consume_registration_token(token: str | None, email: str, db: Session) -> b
         raise HTTPException(status_code=400, detail="Подтверждение не найдено")
     if not challenge.verified_at or challenge.consumed_at or _is_expired(challenge.expires_at):
         raise HTTPException(status_code=400, detail="Код уже использован или срок его действия истёк")
-    challenge.consumed_at = utcnow()
+    consumed_at = utcnow()
+    result = db.execute(
+        update(EmailVerification)
+        .where(
+            EmailVerification.id == challenge.id,
+            EmailVerification.purpose == "registration",
+            EmailVerification.email == email,
+            EmailVerification.verified_at.is_not(None),
+            EmailVerification.consumed_at.is_(None),
+            EmailVerification.expires_at > consumed_at,
+        )
+        .values(consumed_at=consumed_at)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        raise HTTPException(status_code=400, detail="Подтверждение уже использовано или истекло")
     return True
 
 
@@ -227,16 +242,53 @@ def verify_email_code(
         raise HTTPException(status_code=429, detail="Превышено число попыток. Запросите новый код")
     expected = _code_digest(email, purpose, payload.code)
     if not hmac.compare_digest(challenge.code_hash, expected):
-        challenge.attempts += 1
-        if challenge.attempts >= MAX_CODE_ATTEMPTS:
-            challenge.consumed_at = utcnow()
+        attempted_at = utcnow()
+        result = db.execute(
+            update(EmailVerification)
+            .where(
+                EmailVerification.id == challenge.id,
+                EmailVerification.consumed_at.is_(None),
+                EmailVerification.verified_at.is_(None),
+                EmailVerification.attempts < MAX_CODE_ATTEMPTS,
+            )
+            .values(
+                attempts=EmailVerification.attempts + 1,
+                consumed_at=case(
+                    (EmailVerification.attempts + 1 >= MAX_CODE_ATTEMPTS, attempted_at),
+                    else_=EmailVerification.consumed_at,
+                ),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="Код уже использован или заблокирован")
+        attempts = db.scalar(select(EmailVerification.attempts).where(EmailVerification.id == challenge.id))
         db.commit()
+        if attempts >= MAX_CODE_ATTEMPTS:
+            raise HTTPException(status_code=429, detail="Превышено число попыток. Запросите новый код")
         raise HTTPException(status_code=400, detail="Неверный код")
 
-    challenge.verified_at = utcnow()
+    verified_at = utcnow()
+    verification_values = {"verified_at": verified_at}
     if purpose == "account":
-        current_user.email_verified_at = challenge.verified_at
-        challenge.consumed_at = challenge.verified_at
+        verification_values["consumed_at"] = verified_at
+    result = db.execute(
+        update(EmailVerification)
+        .where(
+            EmailVerification.id == challenge.id,
+            EmailVerification.consumed_at.is_(None),
+            EmailVerification.verified_at.is_(None),
+            EmailVerification.attempts < MAX_CODE_ATTEMPTS,
+        )
+        .values(**verification_values)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Код уже использован или заблокирован")
+    if purpose == "account":
+        current_user.email_verified_at = verified_at
         db.commit()
         return {"verified": True, "message": "Почта аккаунта подтверждена"}
 

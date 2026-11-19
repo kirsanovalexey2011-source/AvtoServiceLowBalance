@@ -71,6 +71,12 @@ def test_registration_requires_and_accepts_verified_email(
         })
         assert verified.status_code == 200
         token = verified.json()["verification_token"]
+        reused_code = client.post("/api/auth/verify-email-code", json={
+            "email": "new-owner@example.com",
+            "code": mailbox["new-owner@example.com"],
+            "purpose": "registration",
+        })
+        assert reused_code.status_code == 400
 
         payload = {
             "organization_name": "Новая СТО",
@@ -130,3 +136,36 @@ def test_profile_phone_and_existing_account_email_verification(
     profile = client.get("/api/auth/profile").json()
     assert profile["email_verified"] is True
     assert profile["phone"] == "+79991234567"
+
+
+def test_email_code_is_consumed_after_maximum_failed_attempts(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mailbox: dict[str, str] = {}
+    monkeypatch.setattr(
+        auth_module,
+        "send_verification_email",
+        lambda email, code, purpose: mailbox.__setitem__(email, code),
+    )
+    email = "locked@example.com"
+    requested = client.post("/api/auth/email-code", json={
+        "email": email,
+        "purpose": "registration",
+    })
+    assert requested.status_code == 200
+
+    for attempt in range(auth_module.MAX_CODE_ATTEMPTS):
+        response = client.post("/api/auth/verify-email-code", json={
+            "email": email,
+            "code": "000000",
+            "purpose": "registration",
+        })
+        assert response.status_code == (429 if attempt + 1 == auth_module.MAX_CODE_ATTEMPTS else 400)
+
+    correct_code_after_lock = client.post("/api/auth/verify-email-code", json={
+        "email": email,
+        "code": mailbox[email],
+        "purpose": "registration",
+    })
+    assert correct_code_after_lock.status_code == 400
